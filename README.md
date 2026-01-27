@@ -1,115 +1,82 @@
-# WOJAKCOIN (WJK)
+Bitcoin Core integration/staging tree
+=====================================
 
-WojakCoin is a decentralized cryptocurrency based on Bitcoin Core, featuring a fair launch, advanced difficulty adjustment, and enhanced security.
+[![Build Status](https://travis-ci.org/bitcoin/bitcoin.svg?branch=master)](https://travis-ci.org/bitcoin/bitcoin)
 
-## 🚀 Network Information
+https://bitcoincore.org
 
-### Official Resources
-- **Network**: WojakCoin Mainnet
-- **Ticker**: WJK
-- **DNS Seed**: wojak-seed.s3na.xyz
-- **P2P Port**: 20759
-- **RPC Port**: 20760
+What is Bitcoin?
+----------------
 
-### Seed Nodes
-```
-103.133.25.201:20759
-159.223.90.59:20759
-207.244.232.43:20759
-```
+Bitcoin is an experimental new digital currency that enables instant payments to
+anyone, anywhere in the world. Bitcoin uses peer-to-peer technology to operate
+with no central authority: managing transactions and issuing money are carried
+out collectively by the network. Bitcoin Core is the name of open source
+software which enables the use of this currency.
 
-## 📊 Emission Schedule
+For more information, as well as an immediately useable, binary version of
+the Bitcoin Core software, see https://bitcoin.org/en/download, or read the
+[original whitepaper](https://bitcoincore.org/bitcoin.pdf).
 
-### Block Rewards by Era
+License
+-------
 
-| Era | Block Range | Reward | Blocks | Total Coins | Cumulative |
-|-----|-------------|--------|--------|-------------|------------|
-| 1 | 0 - 209,999 | 100 WJK | 210,000 | 21,000,000 | 21,000,000 |
-| 2 | 210,000 - 419,999 | 50 WJK | 210,000 | 10,500,000 | 31,500,000 |
-| 3 | 420,000 - 629,999 | 25 WJK | 210,000 | 5,250,000 | 36,750,000 |
-| 4 | 630,000 - 839,999 | 12.5 WJK | 210,000 | 2,625,000 | 39,375,000 |
-| 5+ | 840,000+ | Continues halving... | ∞ | ~2,625,000 | ~42,000,000 |
+Bitcoin Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
+information or see https://opensource.org/licenses/MIT.
 
-### Timeline Estimates (2-minute blocks)
+Development Process
+-------------------
 
-| Milestone | Blocks | Time from Launch |
-|-----------|--------|------------------|
-| First Halving | 210,000 | ~291 days (~9.7 months) |
-| Second Halving | 420,000 | ~583 days (~1.6 years) |
-| Third Halving | 630,000 | ~875 days (~2.4 years) |
-| 90% Mined | ~1,050,000 | ~1,458 days (~4 years) |
+The `master` branch is regularly built and tested, but is not guaranteed to be
+completely stable. [Tags](https://github.com/bitcoin/bitcoin/tags) are created
+regularly to indicate new official, stable release versions of Bitcoin Core.
 
-## 🛠️ Build Instructions
+The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Recommended Environment**: Debian 7 (Wheezy)
-This codebase is optimized for older Linux distributions. We strongly recommend using Debian 7 for the most stable build experience.
+The developer [mailing list](https://lists.linuxfoundation.org/mailman/listinfo/bitcoin-dev)
+should be used to discuss complicated or controversial changes before working
+on a patch set.
 
-### Linux (Debian 7 Recommended)
+Developer IRC can be found on Freenode at #bitcoin-core-dev.
 
-1. **Install Dependencies**
-   ```bash
-   apt-get update
-   apt-get install build-essential libtool autotools-dev automake pkg-config libssl-dev libevent-dev bsdmainutils python3
-   # Install MinGW for cross-compilation if needed
-   apt-get install g++-mingw-w64-x86-64
-   ```
+Testing
+-------
 
-2. **Build Dependencies**
-   ```bash
-   cd depends
-   make HOST=x86_64-pc-linux-gnu
-   cd ..
-   ```
+Testing and code review is the bottleneck for development; we get more pull
+requests than we can review and test on short notice. Please be patient and help out by testing
+other people's pull requests, and remember this is a security-critical project where any mistake might cost people
+lots of money.
 
-3. **Build Daemon and GUI**
-   ```bash
-   ./build.sh --linux
-   ```
+### Automated Testing
 
-   Binaries will be available in:
-   - `src/wojakcoind`
-   - `wojakcoin-qt`
+Developers are strongly encouraged to write [unit tests](/doc/unit-tests.md) for new code, and to
+submit new unit tests for old code. Unit tests can be compiled and run
+(assuming they weren't disabled in configure) with: `make check`
 
-### Windows (Cross-compile from Debian 7)
+There are also [regression and integration tests](/qa) of the RPC interface, written
+in Python, that are run automatically on the build server.
+These tests can be run with: `qa/pull-tester/rpc-tests.py`
 
-1. **Build Dependencies**
-   ```bash
-   cd depends
-   make HOST=x86_64-w64-mingw32
-   cd ..
-   ```
+The Travis CI system makes sure that every pull request is built for Windows
+and Linux, OSX, and that unit and sanity tests are automatically run.
 
-2. **Build Daemon and GUI**
-   ```bash
-   ./build.sh --windows
-   ```
+### Manual Quality Assurance (QA) Testing
 
-   Binaries will be available in:
-   - `src/wojakcoind.exe`
-   - `release/wojakcoin-qt.exe`
+Changes should be tested by somebody other than the developer who wrote the
+code. This is especially important for large or high-risk changes. It is useful
+to add a test plan to the pull request description if testing the changes is
+not straightforward.
 
-## 🔒 Security Features
+Translations
+------------
 
-- **Difficulty Adjustment**: DGW-style moving average (activates at block 1000).
-- **Timestamp Protection**: 24-minute future limit, Median-time-past validation.
-- **Money Supply Protection**: MAX_MONEY validation on rewards.
-- **Network Security**: Multiple seed nodes, DNS seed for redundancy.
+Changes to translations as well as new translations can be submitted to
+[Bitcoin Core's Transifex page](https://www.transifex.com/projects/p/bitcoin/).
 
-## 🎓 For Miners
+Translations are periodically pulled from Transifex and merged into the git repository. See the
+[translation process](doc/translation_process.md) for details on how this works.
 
-- **Algorithm**: SHA-256
-- **Block Time**: 2 minutes
-- **Initial Reward**: 100 WJK
-- **Difficulty**: Adjusts every block (after block 1000)
-- **Maturity**: 20 blocks (40 minutes)
+**Important**: We do not accept translation changes as GitHub pull requests because the next
+pull from Transifex would automatically overwrite them again.
 
-### Mining Configuration
-```conf
-gen=1
-genproclimit=-1
-miningaddress=address
-```
-
-## License
-
-WojakCoin is released under the terms of the MIT license. See [COPYING](COPYING) for more information or see https://opensource.org/licenses/MIT.
+Translators should also subscribe to the [mailing list](https://groups.google.com/forum/#!forum/bitcoin-translators).

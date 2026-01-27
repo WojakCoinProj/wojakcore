@@ -1,99 +1,116 @@
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+*.tar.gz
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
 *.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+src/bitcoin
+src/bitcoind
+src/bitcoin-cli
+src/bitcoin-tx
+src/test/test_bitcoin
+src/qt/test/test_bitcoin-qt
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Qt
-Makefile*
-!Makefile.depends.linux
-!Makefile.depends.windows
-!src/makefile.unix
-!src/makefile.mingw
-!src/makefile.linux-mingw
-!src/makefile.osx
-
-object_script.*
-moc_*.cpp
-ui_*.h
-qrc_*.cpp
-.qmake.stash
-*.pro.user
-*.pro.user.*
-*.qbs
-*.qbs.user
-*.qbs.user.*
-*.moc
-
-# Autotools
-.deps/
-.dirstamp
+# autoreconf
+Makefile.in
+aclocal.m4
 autom4te.cache/
-/config.log
-/config.status
-/config.h
-/configure.scan
-/aclocal.m4
-/compile
-/depcomp
-/install-sh
-/missing
-/stamp-h1
+build-aux/config.guess
+build-aux/config.sub
+build-aux/depcomp
+build-aux/install-sh
+build-aux/ltmain.sh
+build-aux/m4/libtool.m4
+build-aux/m4/lt~obsolete.m4
+build-aux/m4/ltoptions.m4
+build-aux/m4/ltsugar.m4
+build-aux/m4/ltversion.m4
+build-aux/missing
+build-aux/compile
+build-aux/test-driver
+config.log
+config.status
+configure
+libtool
+src/config/bitcoin-config.h
+src/config/bitcoin-config.h.in
+src/config/stamp-h1
+share/setup.nsi
+share/qt/Info.plist
 
-# Bitcoin/Wojak specific
-src/wojakcoind
-src/wojakcoin-cli
-src/wojakcoin-tx
-wojakcoin-qt
-src/qt/wojakcoin-qt
-src/test/test_wojakcoin
-src/qt/test/test_wojakcoin-qt
+src/univalue/gen
 
-# Directories
-build/
-dist/
-release/
-debug/
-# Depends
-depends/work/
-depends/built/
-depends/sources/
-depends/SDKs/
-depends/x86_64-*/
-depends/i686-*/
-depends/*.zip
-depends/*.tar.gz
+src/qt/*.moc
+src/qt/moc_*.cpp
+src/qt/forms/ui_*.h
 
-# OS generated
+src/qt/test/moc*.cpp
+
+.deps
+.dirstamp
+.libs
+.*.swp
+*.*~*
+*.bak
+*.rej
+*.orig
+*.pyc
+*.o
+*.o-*
+*.patch
+.bitcoin
+*.a
+*.pb.cc
+*.pb.h
+
+*.log
+*.trs
+*.dmg
+
+*.json.h
+*.raw.h
+
+#libtool object files
+*.lo
+*.la
+
+# Compilation and Qt preprocessor part
+*.qm
+Makefile
+bitcoin-qt
+Bitcoin-Qt.app
+
+# Unit-tests
+Makefile.test
+bitcoin-qt_test
+src/test/buildenv.py
+
+# Resources cpp
+qrc_*.cpp
+
+# Mac specific
 .DS_Store
-Thumbs.db
+build
+
+#lcov
+*.gcno
+*.gcda
+/*.info
+test_bitcoin.coverage/
+total.coverage/
+coverage_percent.txt
+
+#build tests
+linux-coverage-build
+linux-build
+win32-build
+qa/pull-tester/run-bitcoind-for-test.sh
+qa/pull-tester/tests_config.py
+qa/pull-tester/cache/*
+qa/pull-tester/test.*/*
+qa/tmp
+cache/
+share/BitcoindComparisonTool.jar
+
+!src/leveldb*/Makefile
+
+/doc/doxygen/
+
+libbitcoinconsensus.pc
