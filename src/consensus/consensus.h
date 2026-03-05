@@ -17,8 +17,8 @@ static const int COINBASE_MATURITY = 20;  // WojakCoin: 20 blocks maturity
 static const int64_t MAX_FUTURE_BLOCK_TIME = 15 * 60;  // 15 minutes (after activation)
 /** Legacy limit before activation (2 hours, same as Bitcoin). */
 static const int64_t MAX_FUTURE_BLOCK_TIME_LEGACY = 2 * 60 * 60;
-/** Activation time (Unix timestamp): use 15-min limit only after this time. e.g. 2025-03-19 00:00:00 UTC. */
-static const int64_t ACTIVATE_MAX_FUTURE_BLOCK_TIME_15MIN = 1742342400;
+/** Activation time (Unix timestamp): use 15-min limit only after this time. e.g. 2026-03-19 00:00:00 UTC. */
+static const int64_t ACTIVATE_MAX_FUTURE_BLOCK_TIME_15MIN = 1773878400;
 
 /** Flags for nSequence and nLockTime locks */
 enum {
