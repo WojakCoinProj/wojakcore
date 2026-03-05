@@ -1,12 +1,22 @@
+# Synced from Bitcoin v0.12.1 .gitignore; coin-specific names added for WojakCoin
+
 *.tar.gz
 
 *.exe
+# Bitcoin (legacy / reference)
 src/bitcoin
 src/bitcoind
 src/bitcoin-cli
 src/bitcoin-tx
+# WojakCoin
+src/wojakcoin
+src/wojakcoind
+src/wojakcoin-cli
+src/wojakcoin-tx
 src/test/test_bitcoin
+src/test/test_wojakcoin
 src/qt/test/test_bitcoin-qt
+src/qt/test/test_wojakcoin-qt
 
 # autoreconf
 Makefile.in
@@ -56,6 +66,8 @@ src/qt/test/moc*.cpp
 *.o-*
 *.patch
 .bitcoin
+.wojakcoin
+.wojakcoin2
 *.a
 *.pb.cc
 *.pb.h
@@ -67,7 +79,7 @@ src/qt/test/moc*.cpp
 *.json.h
 *.raw.h
 
-#libtool object files
+# libtool object files
 *.lo
 *.la
 
@@ -75,11 +87,14 @@ src/qt/test/moc*.cpp
 *.qm
 Makefile
 bitcoin-qt
+wojakcoin-qt
 Bitcoin-Qt.app
+Wojakcoin-Qt.app
 
 # Unit-tests
 Makefile.test
 bitcoin-qt_test
+wojakcoin-qt_test
 src/test/buildenv.py
 
 # Resources cpp
@@ -89,28 +104,39 @@ qrc_*.cpp
 .DS_Store
 build
 
-#lcov
+# lcov
 *.gcno
 *.gcda
 /*.info
 test_bitcoin.coverage/
+test_wojakcoin.coverage/
 total.coverage/
 coverage_percent.txt
 
-#build tests
+# build tests
 linux-coverage-build
 linux-build
 win32-build
 qa/pull-tester/run-bitcoind-for-test.sh
+qa/pull-tester/run-wojakcoind-for-test.sh
 qa/pull-tester/tests_config.py
 qa/pull-tester/cache/*
 qa/pull-tester/test.*/*
 qa/tmp
 cache/
 share/BitcoindComparisonTool.jar
+share/WojakcoindComparisonTool.jar
 
 !src/leveldb*/Makefile
+
+# depends: track Makefile and patches (from Bitcoin v0.12.1)
+!depends/Makefile
+!depends/patches/
+!depends/patches/*/
+!depends/patches/*/*.patch
+!depends/patches/*/*/*.patch
 
 /doc/doxygen/
 
 libbitcoinconsensus.pc
+libwojakcoinconsensus.pc
