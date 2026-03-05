@@ -13,6 +13,9 @@ static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
 static const int COINBASE_MATURITY = 20;  // WojakCoin: 20 blocks maturity
 
+/** Maximum allowed block timestamp in the future (seconds). Tighter than BTC to reduce time-warp attack on difficulty retarget. */
+static const int64_t MAX_FUTURE_BLOCK_TIME = 15 * 60;  // 15 minutes
+
 /** Flags for nSequence and nLockTime locks */
 enum {
     /* Interpret sequence numbers as relative lock-time constraints. */
