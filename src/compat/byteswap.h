@@ -15,14 +15,14 @@
 #include <byteswap.h>
 #endif
 
-#if HAVE_DECL_BSWAP_16 == 0
+#if HAVE_DECL_BSWAP_16 == 0 && !defined(bswap_16)
 inline uint16_t bswap_16(uint16_t x)
 {
     return (x >> 8) | ((x & 0x00ff) << 8);
 }
 #endif // HAVE_DECL_BSWAP16
 
-#if HAVE_DECL_BSWAP_32 == 0
+#if HAVE_DECL_BSWAP_32 == 0 && !defined(bswap_32)
 inline uint32_t bswap_32(uint32_t x)
 {
     return (((x & 0xff000000U) >> 24) | ((x & 0x00ff0000U) >>  8) |
@@ -30,7 +30,7 @@ inline uint32_t bswap_32(uint32_t x)
 }
 #endif // HAVE_DECL_BSWAP32
 
-#if HAVE_DECL_BSWAP_64 == 0
+#if HAVE_DECL_BSWAP_64 == 0 && !defined(bswap_64)
 inline uint64_t bswap_64(uint64_t x)
 {
      return (((x & 0xff00000000000000ull) >> 56)

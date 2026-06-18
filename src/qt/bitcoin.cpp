@@ -46,6 +46,8 @@
 #include <QLocale>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStyle>
+#include <QStyleFactory>
 #include <QThread>
 #include <QTimer>
 #include <QTranslator>
@@ -534,6 +536,27 @@ int main(int argc, char *argv[])
 #endif
 #ifdef Q_OS_MAC
     QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
+    // On recent macOS releases the native Qt "macintosh" style renders
+    // checkbox / radio indicators and text-field borders poorly (frequently
+    // invisible), making controls hard or impossible to see. Switch to the
+    // Fusion style, which is built into QtWidgets (it needs no extra style or
+    // imageformat plugin) and draws checkboxes, radio buttons and input-field
+    // borders itself, giving a consistent and fully visible UI on macOS.
+    if (QStyle *fusionStyle = QStyleFactory::create("Fusion"))
+        QApplication::setStyle(fusionStyle);
+    // Reinforce a clearly visible outline on every text-entry widget and give
+    // focused fields the Wojak accent colour. Spin boxes and combo boxes keep
+    // their Fusion-drawn borders and arrows, so they are intentionally not
+    // restyled here (styling their border via QSS would drop the arrows).
+    app.setStyleSheet(
+        "QLineEdit, QPlainTextEdit, QTextEdit {"
+        " border: 1px solid #9a9a9a;"
+        " border-radius: 3px;"
+        " padding: 2px 4px; }"
+        "QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus {"
+        " border: 1px solid #FF8000; }"
+        "QLineEdit:disabled, QPlainTextEdit:disabled, QTextEdit:disabled {"
+        " color: #888888; background-color: #f0f0f0; }");
 #endif
 #if QT_VERSION >= 0x050500
     // Because of the POODLE attack it is recommended to disable SSLv3 (https://disablessl3.com/),

@@ -4,6 +4,9 @@
 
 #include "clientmodel.h"
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #include "bantablemodel.h"
 #include "guiconstants.h"
 #include "peertablemodel.h"

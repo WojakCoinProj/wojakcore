@@ -4,6 +4,9 @@
 
 #include "transactiontablemodel.h"
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #include "addresstablemodel.h"
 #include "guiconstants.h"
 #include "guiutil.h"

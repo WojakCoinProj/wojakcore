@@ -4,6 +4,9 @@
 
 #include "bitcoingui.h"
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #include "bitcoinunits.h"
 #include "clientmodel.h"
 #include "guiconstants.h"
