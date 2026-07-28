@@ -23,8 +23,20 @@ static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = 0;
 static const unsigned int MAX_STANDARD_TX_SIZE = 100000;
 /** Maximum number of signature check operations in an IsStandard() P2SH script */
 static const unsigned int MAX_P2SH_SIGOPS = 15;
-/** The maximum number of sigops we're willing to relay/mine in a single tx */
-static const unsigned int MAX_STANDARD_TX_SIGOPS = MAX_BLOCK_SIGOPS/5;
+/**
+ * The maximum number of sigops we're willing to relay/mine in a single tx.
+ *
+ * Policy/standardness only — not a consensus rule. Raising this does not
+ * require a hard or soft fork; older nodes simply remain more restrictive in
+ * what they relay.
+ *
+ * Historically this was MAX_BLOCK_SIGOPS/5 (4,000). Raise to 16,000 to match
+ * Bitcoin's MAX_STANDARD_TX_SIGOPS_COST so metaprotocols such as the Bitcoin
+ * Computer can broadcast transactions that previously failed with
+ * bad-txns-too-many-sigops. Still well under MAX_BLOCK_SIGOPS (20,000), so a
+ * single standard tx cannot exhaust the block sigops budget by itself.
+ */
+static const unsigned int MAX_STANDARD_TX_SIGOPS = 16000;
 /** Default for -maxmempool, maximum megabytes of mempool memory usage */
 static const unsigned int DEFAULT_MAX_MEMPOOL_SIZE = 300;
 /**
