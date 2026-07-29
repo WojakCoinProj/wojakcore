@@ -1,0 +1,357 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      upload_tag:
+        description: "If set, upload artifacts to this existing release tag (e.g. 1.12.2.0)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  # Parallelism for depends + make
+  JOBS: 4
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Linux x86_64 (depends, with wallet + GUI)
+  # ---------------------------------------------------------------------------
+  linux-amd64:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git python3 gperf bison \
+            libxkbcommon-dev libxcb-xinerama0-dev
+
+      - name: Cache depends
+        uses: actions/cache@v4
+        with:
+          path: |
+            depends/built
+            depends/sources
+            depends/work
+            depends/SDKs
+          key: depends-linux-amd64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
+          restore-keys: depends-linux-amd64-
+
+      - name: Build depends
+        run: |
+          make -C depends HOST=x86_64-pc-linux-gnu -j${JOBS}
+
+      - name: Configure and build
+        run: |
+          ./autogen.sh
+          ./configure \
+            --prefix="$PWD/depends/x86_64-pc-linux-gnu" \
+            --disable-tests \
+            --disable-bench \
+            --disable-gui-tests
+          make -j${JOBS}
+          strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx || true
+          strip src/qt/wojakcoin-qt || true
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist
+          cp -f src/wojakcoind dist/wojakcoind
+          cp -f src/wojakcoin-cli dist/wojakcoin-cli
+          cp -f src/wojakcoin-tx dist/wojakcoin-tx
+          cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt
+          tar -C dist -czf wojakcoin-linux-x86_64.tar.gz \
+            wojakcoind wojakcoin-cli wojakcoin-tx wojakcoin-qt
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: |
+            dist/wojakcoind
+            dist/wojakcoin-cli
+            dist/wojakcoin-tx
+            dist/wojakcoin-qt
+            wojakcoin-linux-x86_64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Linux aarch64 (native arm runner, depends)
+  # ---------------------------------------------------------------------------
+  linux-arm64:
+    name: Linux aarch64
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git python3 gperf bison \
+            libxkbcommon-dev libxcb-xinerama0-dev
+
+      - name: Cache depends
+        uses: actions/cache@v4
+        with:
+          path: |
+            depends/built
+            depends/sources
+            depends/work
+            depends/SDKs
+          key: depends-linux-arm64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
+          restore-keys: depends-linux-arm64-
+
+      - name: Build depends
+        run: |
+          # Native aarch64 host
+          HOST="$(./depends/config.guess)"
+          echo "HOST=$HOST"
+          echo "HOST=$HOST" >> "$GITHUB_ENV"
+          make -C depends HOST="$HOST" -j${JOBS}
+
+      - name: Configure and build
+        run: |
+          ./autogen.sh
+          ./configure \
+            --prefix="$PWD/depends/${HOST}" \
+            --disable-tests \
+            --disable-bench \
+            --disable-gui-tests
+          make -j${JOBS}
+          strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx || true
+          strip src/qt/wojakcoin-qt || true
+
+      - name: Stage artifacts (aarch64 names)
+        run: |
+          mkdir -p dist
+          cp -f src/wojakcoind dist/wojakcoind-aarch64
+          cp -f src/wojakcoin-cli dist/wojakcoin-cli-aarch64
+          cp -f src/wojakcoin-tx dist/wojakcoin-tx-aarch64
+          if [ -f src/qt/wojakcoin-qt ]; then
+            cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt-aarch64
+          fi
+          tar -C dist -czf wojakcoin-linux-aarch64.tar.gz .
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: |
+            dist/*
+            wojakcoin-linux-aarch64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Windows x86_64 (mingw cross via depends)
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git python3 gperf bison \
+            g++-mingw-w64-x86-64 nsis zip
+          # Prefer posix threading model for mingw
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+
+      - name: Cache depends
+        uses: actions/cache@v4
+        with:
+          path: |
+            depends/built
+            depends/sources
+            depends/work
+            depends/SDKs
+          key: depends-win-amd64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
+          restore-keys: depends-win-amd64-
+
+      - name: Build depends
+        run: |
+          make -C depends HOST=x86_64-w64-mingw32 -j${JOBS}
+
+      - name: Configure and build
+        run: |
+          ./autogen.sh
+          ./configure \
+            --prefix="$PWD/depends/x86_64-w64-mingw32" \
+            --host=x86_64-w64-mingw32 \
+            --disable-tests \
+            --disable-bench \
+            --disable-gui-tests
+          make -j${JOBS}
+          x86_64-w64-mingw32-strip src/wojakcoind.exe src/wojakcoin-cli.exe src/wojakcoin-tx.exe || true
+          x86_64-w64-mingw32-strip src/qt/wojakcoin-qt.exe || true
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist
+          cp -f src/wojakcoind.exe dist/wojakcoind.exe
+          cp -f src/wojakcoin-cli.exe dist/wojakcoin-cli.exe
+          cp -f src/wojakcoin-tx.exe dist/wojakcoin-tx.exe
+          cp -f src/qt/wojakcoin-qt.exe dist/wojakcoin-qt.exe
+          (cd dist && zip -9 ../wojakcoin-windows-x86_64.zip \
+            wojakcoind.exe wojakcoin-cli.exe wojakcoin-tx.exe wojakcoin-qt.exe)
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: |
+            dist/*.exe
+            wojakcoin-windows-x86_64.zip
+
+  # ---------------------------------------------------------------------------
+  # macOS arm64 (Homebrew, matching local WojakCore builds)
+  # ---------------------------------------------------------------------------
+  macos:
+    name: macOS arm64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew dependencies
+        run: |
+          brew update
+          brew install automake libtool boost pkg-config python@3 \
+            qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode miniupnpc || true
+          # Some formulae may already be present
+          brew list automake libtool boost pkg-config qt@5 libevent berkeley-db@4 openssl@3
+
+      - name: Configure and build
+        run: |
+          eval "$(/opt/homebrew/bin/brew shellenv)"
+          export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+          ./autogen.sh
+          ./configure \
+            --with-gui=qt5 \
+            --disable-tests \
+            --disable-bench \
+            --disable-gui-tests \
+            --without-miniupnpc \
+            --with-boost="$(brew --prefix boost)" \
+            BDB_CFLAGS="-I$(brew --prefix berkeley-db@4)/include" \
+            BDB_LIBS="-L$(brew --prefix berkeley-db@4)/lib -ldb_cxx-4.8" \
+            CPPFLAGS="-I$(brew --prefix openssl@3)/include -I/opt/homebrew/include" \
+            LDFLAGS="-L$(brew --prefix openssl@3)/lib -L/opt/homebrew/lib" \
+            PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix openssl@3)/lib/pkgconfig" \
+            CXXFLAGS="-O2 -g" \
+            CFLAGS="-O2 -g"
+          make -j"$(sysctl -n hw.ncpu)"
+
+      - name: Package CLI + Qt app
+        run: |
+          set -e
+          eval "$(/opt/homebrew/bin/brew shellenv)"
+          export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+          mkdir -p dist
+
+          cp -f src/wojakcoind dist/wojakcoind-macos-arm64
+          cp -f src/wojakcoin-cli dist/wojakcoin-cli-macos-arm64
+          cp -f src/wojakcoin-tx dist/wojakcoin-tx-macos-arm64
+
+          make appbundle || true
+
+          if [ -d WojakCore-Qt.app ]; then
+            APPDIR=WojakCore-Qt.app
+          elif [ -d Bitcoin-Qt.app ]; then
+            APPDIR=Bitcoin-Qt.app
+          else
+            APPDIR=WojakCore-Qt.app
+            mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources"
+            cp -f src/qt/wojakcoin-qt "$APPDIR/Contents/MacOS/WojakCore-Qt"
+            printf '%s\n' \
+              '<?xml version="1.0" encoding="UTF-8"?>' \
+              '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+              '<plist version="1.0"><dict>' \
+              '<key>CFBundleExecutable</key><string>WojakCore-Qt</string>' \
+              '<key>CFBundleIdentifier</key><string>org.wojakcoin.WojakCore-Qt</string>' \
+              '<key>CFBundleName</key><string>WojakCore-Qt</string>' \
+              '<key>CFBundlePackageType</key><string>APPL</string>' \
+              '<key>CFBundleShortVersionString</key><string>1.12.2.0</string>' \
+              '<key>NSHighResolutionCapable</key><true/>' \
+              '</dict></plist>' > "$APPDIR/Contents/Info.plist"
+            printf 'APPL????' > "$APPDIR/Contents/PkgInfo"
+          fi
+
+          if command -v macdeployqt >/dev/null 2>&1; then
+            macdeployqt "$APPDIR" -verbose=1 || true
+          fi
+
+          if [ "$APPDIR" != "WojakCore-Qt.app" ]; then
+            rm -rf WojakCore-Qt.app
+            mv "$APPDIR" WojakCore-Qt.app
+          fi
+          ditto -c -k --sequesterRsrc --keepParent WojakCore-Qt.app Macosx-WojakCore-Qt.app.zip
+          cp -f Macosx-WojakCore-Qt.app.zip dist/
+          tar -C dist -czf wojakcoin-macos-arm64.tar.gz \
+            wojakcoind-macos-arm64 wojakcoin-cli-macos-arm64 wojakcoin-tx-macos-arm64
+          ls -la dist Macosx-WojakCore-Qt.app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: |
+            dist/*
+            Macosx-WojakCore-Qt.app.zip
+            wojakcoin-macos-arm64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Publish all artifacts to the GitHub Release
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish release assets
+    needs: [linux-amd64, linux-arm64, windows, macos]
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'release' || inputs.upload_tag != ''
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "name=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ inputs.upload_tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten and list artifacts
+        run: |
+          mkdir -p upload
+          # Individual binaries (match 1.12.1.0 layout)
+          find artifacts -type f \( \
+            -name 'wojakcoind' -o -name 'wojakcoin-cli' -o -name 'wojakcoin-tx' -o -name 'wojakcoin-qt' -o \
+            -name 'wojakcoind-aarch64' -o -name 'wojakcoin-cli-aarch64' -o -name 'wojakcoin-tx-aarch64' -o -name 'wojakcoin-qt-aarch64' -o \
+            -name 'wojakcoind.exe' -o -name 'wojakcoin-cli.exe' -o -name 'wojakcoin-tx.exe' -o -name 'wojakcoin-qt.exe' -o \
+            -name 'Macosx-WojakCore-Qt.app.zip' -o \
+            -name 'wojakcoind-macos-arm64' -o -name 'wojakcoin-cli-macos-arm64' -o -name 'wojakcoin-tx-macos-arm64' -o \
+            -name '*.tar.gz' -o -name '*.zip' \
+          \) -exec cp -f {} upload/ \;
+          ls -lah upload
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          files: upload/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
