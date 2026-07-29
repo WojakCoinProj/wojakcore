@@ -19,6 +19,7 @@
 #include <boost/foreach.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread.hpp>
+#include <boost/version.hpp>
 
 using namespace std;
 
@@ -885,8 +886,14 @@ bool BackupWallet(const CWallet& wallet, const string& strDest)
                     pathDest /= wallet.strWalletFile;
 
                 try {
-#if BOOST_VERSION >= 104000
+                    // Boost.Filesystem copy_file options:
+                    //  - 1.74+: copy_options::overwrite_existing
+                    //  - 1.44–1.73: copy_option::overwrite_if_exists (depends uses 1.59)
+                    //  - older: no options
+#if BOOST_VERSION >= 107400
                     boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_options::overwrite_existing);
+#elif BOOST_VERSION >= 104400
+                    boost::filesystem::copy_file(pathSrc, pathDest, boost::filesystem::copy_option::overwrite_if_exists);
 #else
                     boost::filesystem::copy_file(pathSrc, pathDest);
 #endif
