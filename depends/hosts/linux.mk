@@ -29,3 +29,23 @@ i686_linux_CXX=$(default_host_CXX) -m32
 x86_64_linux_CC=$(default_host_CC) -m64
 x86_64_linux_CXX=$(default_host_CXX) -m64
 endif
+
+# Native aarch64/arm64: depends always sets host_toolchain=$(HOST)- even for
+# native builds, so without these overrides boost/b2 looks for
+# aarch64-unknown-linux-gnu-g++ which does not exist on the runner.
+ifeq ($(build_arch),aarch64)
+aarch64_linux_CC=gcc
+aarch64_linux_CXX=g++
+aarch64_linux_AR=ar
+aarch64_linux_RANLIB=ranlib
+aarch64_linux_NM=nm
+aarch64_linux_STRIP=strip
+endif
+ifeq ($(build_arch),arm64)
+arm64_linux_CC=gcc
+arm64_linux_CXX=g++
+arm64_linux_AR=ar
+arm64_linux_RANLIB=ranlib
+arm64_linux_NM=nm
+arm64_linux_STRIP=strip
+endif

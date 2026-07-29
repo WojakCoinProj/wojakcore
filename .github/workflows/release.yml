@@ -113,11 +113,15 @@ jobs:
 
       - name: Build depends
         run: |
-          # Native aarch64 host
+          # Native aarch64: config.guess is aarch64-unknown-linux-gnu. depends
+          # prefixes tools as $(HOST)-g++ unless hosts/linux.mk maps aarch64 to
+          # bare gcc/g++ (native). Do not pass a cross triplet that does not exist.
           HOST="$(./depends/config.guess)"
           echo "HOST=$HOST"
           echo "HOST=$HOST" >> "$GITHUB_ENV"
-          make -C depends HOST="$HOST" -j${JOBS}
+          which gcc g++
+          gcc -dumpmachine
+          make -C depends HOST="$HOST" -j${JOBS} V=1
 
       - name: Configure and build
         run: |
@@ -227,30 +231,41 @@ jobs:
 
       - name: Install Homebrew dependencies
         run: |
+          eval "$(/opt/homebrew/bin/brew shellenv)"
           brew update
           brew install automake libtool boost pkg-config python@3 \
-            qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode miniupnpc || true
-          # Some formulae may already be present
-          brew list automake libtool boost pkg-config qt@5 libevent berkeley-db@4 openssl@3
+            qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode
+          brew list --versions automake libtool boost pkg-config qt@5 libevent berkeley-db@4 openssl@3
+          ls "$(brew --prefix boost)/include/boost/system" | head
+          ls "$(brew --prefix boost)/lib" | head
 
       - name: Configure and build
         run: |
+          set -e
           eval "$(/opt/homebrew/bin/brew shellenv)"
-          export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+          BOOST_PREFIX="$(brew --prefix boost)"
+          OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+          BDB_PREFIX="$(brew --prefix berkeley-db@4)"
+          QT_PREFIX="$(brew --prefix qt@5)"
+          EVENT_PREFIX="$(brew --prefix libevent)"
+
           ./autogen.sh
+          # Modern Homebrew Boost is mostly header-only for system; need C++14+
+          # and explicit -I/-L so AX_BOOST_* macros find headers + libs.
           ./configure \
             --with-gui=qt5 \
             --disable-tests \
             --disable-bench \
             --disable-gui-tests \
             --without-miniupnpc \
-            --with-boost="$(brew --prefix boost)" \
-            BDB_CFLAGS="-I$(brew --prefix berkeley-db@4)/include" \
-            BDB_LIBS="-L$(brew --prefix berkeley-db@4)/lib -ldb_cxx-4.8" \
-            CPPFLAGS="-I$(brew --prefix openssl@3)/include -I/opt/homebrew/include" \
-            LDFLAGS="-L$(brew --prefix openssl@3)/lib -L/opt/homebrew/lib" \
-            PKG_CONFIG_PATH="$(brew --prefix qt@5)/lib/pkgconfig:$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix openssl@3)/lib/pkgconfig" \
-            CXXFLAGS="-O2 -g" \
+            --with-boost="${BOOST_PREFIX}" \
+            BDB_CFLAGS="-I${BDB_PREFIX}/include" \
+            BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" \
+            CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BOOST_PREFIX}/include -I/opt/homebrew/include" \
+            LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BOOST_PREFIX}/lib -L/opt/homebrew/lib" \
+            PKG_CONFIG_PATH="${QT_PREFIX}/lib/pkgconfig:${EVENT_PREFIX}/lib/pkgconfig:${OPENSSL_PREFIX}/lib/pkgconfig" \
+            CXXFLAGS="-O2 -g -std=c++14" \
             CFLAGS="-O2 -g"
           make -j"$(sysctl -n hw.ncpu)"
 
