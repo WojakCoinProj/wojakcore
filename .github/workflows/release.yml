@@ -84,7 +84,9 @@ jobs:
             wojakcoin-linux-x86_64.tar.gz
 
   # ---------------------------------------------------------------------------
-  # Linux aarch64 (native arm runner, depends)
+  # Linux aarch64 (native arm runner, depends, NO_QT)
+  # Matches 1.12.1.0 release assets: daemon/cli/tx only (no Qt on aarch64).
+  # Qt pulls expat 2.1.0 whose config.guess (2011) cannot identify aarch64.
   # ---------------------------------------------------------------------------
   linux-arm64:
     name: Linux aarch64
@@ -97,8 +99,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libtool autotools-dev automake pkg-config \
-            bsdmainutils curl git python3 gperf bison \
-            libxkbcommon-dev libxcb-xinerama0-dev
+            bsdmainutils curl git python3 gperf bison
 
       - name: Cache depends
         uses: actions/cache@v4
@@ -108,32 +109,32 @@ jobs:
             depends/sources
             depends/work
             depends/SDKs
-          key: depends-linux-arm64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
-          restore-keys: depends-linux-arm64-
+          # Bump key when NO_QT changes so we don't reuse a Qt/expat cache
+          key: depends-linux-arm64-noqt-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
+          restore-keys: depends-linux-arm64-noqt-
 
       - name: Build depends
         run: |
-          # Native aarch64: config.guess is aarch64-unknown-linux-gnu. depends
-          # prefixes tools as $(HOST)-g++ unless hosts/linux.mk maps aarch64 to
-          # bare gcc/g++ (native). Do not pass a cross triplet that does not exist.
+          # Native aarch64: hosts/linux.mk maps aarch64 tools to bare gcc/g++.
+          # NO_QT=1 avoids ancient expat/freetype/qt that break config.guess on aarch64.
           HOST="$(./depends/config.guess)"
           echo "HOST=$HOST"
           echo "HOST=$HOST" >> "$GITHUB_ENV"
           which gcc g++
           gcc -dumpmachine
-          make -C depends HOST="$HOST" -j${JOBS} V=1
+          make -C depends HOST="$HOST" NO_QT=1 -j${JOBS} V=1
 
       - name: Configure and build
         run: |
           ./autogen.sh
           ./configure \
             --prefix="$PWD/depends/${HOST}" \
+            --with-gui=no \
             --disable-tests \
             --disable-bench \
             --disable-gui-tests
           make -j${JOBS}
-          strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx || true
-          strip src/qt/wojakcoin-qt || true
+          strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx
 
       - name: Stage artifacts (aarch64 names)
         run: |
@@ -141,17 +142,18 @@ jobs:
           cp -f src/wojakcoind dist/wojakcoind-aarch64
           cp -f src/wojakcoin-cli dist/wojakcoin-cli-aarch64
           cp -f src/wojakcoin-tx dist/wojakcoin-tx-aarch64
-          if [ -f src/qt/wojakcoin-qt ]; then
-            cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt-aarch64
-          fi
-          tar -C dist -czf wojakcoin-linux-aarch64.tar.gz .
+          tar -C dist -czf wojakcoin-linux-aarch64.tar.gz \
+            wojakcoind-aarch64 wojakcoin-cli-aarch64 wojakcoin-tx-aarch64
           ls -la dist
+          ./src/wojakcoind -version || true
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-aarch64
           path: |
-            dist/*
+            dist/wojakcoind-aarch64
+            dist/wojakcoin-cli-aarch64
+            dist/wojakcoin-tx-aarch64
             wojakcoin-linux-aarch64.tar.gz
 
   # ---------------------------------------------------------------------------
