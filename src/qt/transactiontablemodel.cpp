@@ -4,8 +4,13 @@
 
 #include "transactiontablemodel.h"
 
+#include <boost/version.hpp>
+#include <boost/bind.hpp>
+// Boost >= 1.60: placeholders in boost::placeholders. Depends uses 1.59.
+#if BOOST_VERSION >= 106000
 #include <boost/bind/bind.hpp>
 using namespace boost::placeholders;
+#endif
 
 #include "addresstablemodel.h"
 #include "guiconstants.h"
