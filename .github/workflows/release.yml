@@ -285,52 +285,91 @@ jobs:
 
       - name: Package CLI + Qt app
         run: |
-          set -e
+          set -euo pipefail
           eval "$(/opt/homebrew/bin/brew shellenv)"
-          export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
           mkdir -p dist
+
+          test -x src/wojakcoind
+          test -x src/wojakcoin-cli
+          test -x src/wojakcoin-tx
+          test -x src/qt/wojakcoin-qt
 
           cp -f src/wojakcoind dist/wojakcoind-macos-arm64
           cp -f src/wojakcoin-cli dist/wojakcoin-cli-macos-arm64
           cp -f src/wojakcoin-tx dist/wojakcoin-tx-macos-arm64
 
-          make appbundle || true
+          # Remove any stale shells from previous runs / accidental leftovers
+          rm -rf WojakCore-Qt.app Bitcoin-Qt.app
 
-          if [ -d WojakCore-Qt.app ]; then
-            APPDIR=WojakCore-Qt.app
-          elif [ -d Bitcoin-Qt.app ]; then
-            APPDIR=Bitcoin-Qt.app
-          else
-            APPDIR=WojakCore-Qt.app
-            mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources"
-            cp -f src/qt/wojakcoin-qt "$APPDIR/Contents/MacOS/WojakCore-Qt"
-            printf '%s\n' \
-              '<?xml version="1.0" encoding="UTF-8"?>' \
-              '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-              '<plist version="1.0"><dict>' \
-              '<key>CFBundleExecutable</key><string>WojakCore-Qt</string>' \
-              '<key>CFBundleIdentifier</key><string>org.wojakcoin.WojakCore-Qt</string>' \
-              '<key>CFBundleName</key><string>WojakCore-Qt</string>' \
-              '<key>CFBundlePackageType</key><string>APPL</string>' \
-              '<key>CFBundleShortVersionString</key><string>1.12.2.0</string>' \
-              '<key>NSHighResolutionCapable</key><true/>' \
-              '</dict></plist>' > "$APPDIR/Contents/Info.plist"
-            printf 'APPL????' > "$APPDIR/Contents/PkgInfo"
+          # Build .app via Makefile (requires wojakcoin-qt path fix in Makefile.am).
+          # Do NOT swallow errors — empty shells were previously uploaded as "releases".
+          make appbundle
+
+          APPDIR=WojakCore-Qt.app
+          EXE="$APPDIR/Contents/MacOS/WojakCore-Qt"
+          if [ ! -x "$EXE" ]; then
+            echo "ERROR: make appbundle did not produce $EXE"
+            find "$APPDIR" -type f 2>/dev/null || true
+            ls -la src/qt/
+            exit 1
           fi
 
+          # Bundle Qt frameworks + plugins (Homebrew qt@5)
           if command -v macdeployqt >/dev/null 2>&1; then
-            macdeployqt "$APPDIR" -verbose=1 || true
+            macdeployqt "$APPDIR" -verbose=1
+          else
+            echo "ERROR: macdeployqt not found (qt@5 bin not on PATH)"
+            exit 1
           fi
 
-          if [ "$APPDIR" != "WojakCore-Qt.app" ]; then
-            rm -rf WojakCore-Qt.app
-            mv "$APPDIR" WojakCore-Qt.app
+          # Also pull non-Qt dylibs (boost, openssl, bdb, libevent, protobuf, qrencode)
+          # via Bitcoin Core's macdeployqtplus when available.
+          if [ -x contrib/macdeploy/macdeployqtplus ]; then
+            QT_TRANSLATION_DIR="$(brew --prefix qt@5)/translations"
+            export QT_TRANSLATION_DIR
+            python3 contrib/macdeploy/macdeployqtplus "$APPDIR" \
+              -translations-dir="$QT_TRANSLATION_DIR" \
+              -add-qt-tr "da,de,es,hu,ru,uk,zh_CN,zh_TW" \
+              -verbose 2 || true
           fi
-          ditto -c -k --sequesterRsrc --keepParent WojakCore-Qt.app Macosx-WojakCore-Qt.app.zip
+
+          # Ad-hoc sign so Gatekeeper can at least launch after right-click Open
+          # (unsigned downloads from Chrome get quarantine + "can't be opened").
+          codesign --force --deep --sign - "$APPDIR"
+          codesign -dv --verbose=2 "$APPDIR" 2>&1 | head -20
+
+          # Hard fail if the zip would be an empty shell again (<1MB is broken)
+          APP_BYTES=$(du -sk "$APPDIR" | awk '{print $1 * 1024}')
+          EXE_BYTES=$(stat -f%z "$EXE")
+          echo "App size bytes=$APP_BYTES exe bytes=$EXE_BYTES"
+          if [ "$EXE_BYTES" -lt 1000000 ]; then
+            echo "ERROR: executable too small ($EXE_BYTES) — packaging failed"
+            exit 1
+          fi
+          if [ "$APP_BYTES" -lt 10000000 ]; then
+            echo "ERROR: app bundle too small ($APP_BYTES) — Qt frameworks missing?"
+            find "$APPDIR" -type f | head -50
+            exit 1
+          fi
+
+          # Smoke-test the binary (no GUI)
+          "$EXE" -version
+
+          ditto -c -k --sequesterRsrc --keepParent "$APPDIR" Macosx-WojakCore-Qt.app.zip
+          ZIP_BYTES=$(stat -f%z Macosx-WojakCore-Qt.app.zip)
+          echo "Zip size bytes=$ZIP_BYTES"
+          if [ "$ZIP_BYTES" -lt 5000000 ]; then
+            echo "ERROR: zip too small ($ZIP_BYTES) — refusing to upload empty shell"
+            exit 1
+          fi
+
           cp -f Macosx-WojakCore-Qt.app.zip dist/
           tar -C dist -czf wojakcoin-macos-arm64.tar.gz \
             wojakcoind-macos-arm64 wojakcoin-cli-macos-arm64 wojakcoin-tx-macos-arm64
-          ls -la dist Macosx-WojakCore-Qt.app.zip
+          ls -lah dist Macosx-WojakCore-Qt.app.zip
+          ls -la "$APPDIR/Contents/MacOS/"
+          ls -la "$APPDIR/Contents/Frameworks/" | head
 
       - uses: actions/upload-artifact@v4
         with:
