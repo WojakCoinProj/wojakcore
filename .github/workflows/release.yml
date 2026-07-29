@@ -110,8 +110,8 @@ jobs:
             depends/work
             depends/SDKs
           # Bump key when NO_QT changes so we don't reuse a Qt/expat cache
-          key: depends-linux-arm64-noqt-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
-          restore-keys: depends-linux-arm64-noqt-
+          key: depends-linux-arm64-noqt-v2-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/funcs.mk', 'depends/hosts/**', 'depends/builders/**') }}
+          restore-keys: depends-linux-arm64-noqt-v2-
 
       - name: Build depends
         run: |
