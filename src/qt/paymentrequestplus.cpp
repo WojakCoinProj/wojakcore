@@ -13,11 +13,19 @@
 
 #include <stdexcept>
 
+#include <openssl/evp.h>
+#include <openssl/opensslv.h>
 #include <openssl/x509_vfy.h>
 
 #include <QDateTime>
 #include <QDebug>
 #include <QSslCertificate>
+
+// OpenSSL 1.0.x (depends) uses create/destroy; 1.1+ (Homebrew) uses new/free.
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define EVP_MD_CTX_new() EVP_MD_CTX_create()
+#define EVP_MD_CTX_free(ctx) EVP_MD_CTX_destroy(ctx)
+#endif
 
 class SSLVerifyError : public std::runtime_error
 {
