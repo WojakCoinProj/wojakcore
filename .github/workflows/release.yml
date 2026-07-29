@@ -408,13 +408,26 @@ jobs:
             exit 1
           fi
 
-          # Smoke-test the binary (no GUI) — catches missing dylibs
-          if ! "$EXE" -version; then
-            echo "ERROR: bundled app failed to run -version (missing dylibs?)"
+          # Smoke-test: binary must load dylibs and print version.
+          # Note: wojakcoin-qt -version often exits non-zero after printing
+          # (Bitcoin-Qt AppInit path) — check stdout/stderr, not exit code.
+          set +e
+          VER_OUT="$("$EXE" -version 2>&1)"
+          VER_RC=$?
+          set -e
+          echo "$VER_OUT"
+          echo "(exit code $VER_RC — ignored if version string present)"
+          if ! echo "$VER_OUT" | grep -Eqi 'WojakCore version|version v?[0-9]'; then
+            echo "ERROR: bundled app failed to print version (missing dylibs?)"
             echo "=== otool -L main ==="
             otool -L "$EXE" | head -40
             echo "=== Frameworks ==="
             ls -la "$FW" | head -60
+            exit 1
+          fi
+          # dyld hard-fail still shows up as empty output + abort message
+          if echo "$VER_OUT" | grep -Eqi 'Library not loaded|dyld\[|Abort trap|image not found'; then
+            echo "ERROR: dyld failure while running bundled app"
             exit 1
           fi
 
