@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libtool autotools-dev automake pkg-config \
-            bsdmainutils curl git python3 gperf bison \
+            bsdmainutils curl git python3 gperf bison zip \
             libxkbcommon-dev libxcb-xinerama0-dev
 
       - name: Cache depends
@@ -69,9 +69,13 @@ jobs:
           cp -f src/wojakcoin-cli dist/wojakcoin-cli
           cp -f src/wojakcoin-tx dist/wojakcoin-tx
           cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt
+          # Zip is the primary release download for Linux x86_64
+          (cd dist && zip -9 ../wojakcoin-linux-x86_64.zip \
+            wojakcoind wojakcoin-cli wojakcoin-tx wojakcoin-qt)
           tar -C dist -czf wojakcoin-linux-x86_64.tar.gz \
             wojakcoind wojakcoin-cli wojakcoin-tx wojakcoin-qt
-          ls -la dist
+          ls -lah dist wojakcoin-linux-x86_64.zip
+          test -s wojakcoin-linux-x86_64.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -81,6 +85,7 @@ jobs:
             dist/wojakcoin-cli
             dist/wojakcoin-tx
             dist/wojakcoin-qt
+            wojakcoin-linux-x86_64.zip
             wojakcoin-linux-x86_64.tar.gz
 
   # ---------------------------------------------------------------------------
@@ -99,7 +104,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libtool autotools-dev automake pkg-config \
-            bsdmainutils curl git python3 gperf bison
+            bsdmainutils curl git python3 gperf bison zip
 
       - name: Cache depends
         uses: actions/cache@v4
@@ -142,9 +147,13 @@ jobs:
           cp -f src/wojakcoind dist/wojakcoind-aarch64
           cp -f src/wojakcoin-cli dist/wojakcoin-cli-aarch64
           cp -f src/wojakcoin-tx dist/wojakcoin-tx-aarch64
+          # Zip is the primary release download for Linux aarch64
+          (cd dist && zip -9 ../wojakcoin-linux-aarch64.zip \
+            wojakcoind-aarch64 wojakcoin-cli-aarch64 wojakcoin-tx-aarch64)
           tar -C dist -czf wojakcoin-linux-aarch64.tar.gz \
             wojakcoind-aarch64 wojakcoin-cli-aarch64 wojakcoin-tx-aarch64
-          ls -la dist
+          ls -lah dist wojakcoin-linux-aarch64.zip
+          test -s wojakcoin-linux-aarch64.zip
           ./src/wojakcoind -version || true
 
       - uses: actions/upload-artifact@v4
@@ -154,6 +163,7 @@ jobs:
             dist/wojakcoind-aarch64
             dist/wojakcoin-cli-aarch64
             dist/wojakcoin-tx-aarch64
+            wojakcoin-linux-aarch64.zip
             wojakcoin-linux-aarch64.tar.gz
 
   # ---------------------------------------------------------------------------
@@ -211,9 +221,18 @@ jobs:
           cp -f src/wojakcoin-cli.exe dist/wojakcoin-cli.exe
           cp -f src/wojakcoin-tx.exe dist/wojakcoin-tx.exe
           cp -f src/qt/wojakcoin-qt.exe dist/wojakcoin-qt.exe
+          # Zip is the primary release download for Windows x86_64
           (cd dist && zip -9 ../wojakcoin-windows-x86_64.zip \
             wojakcoind.exe wojakcoin-cli.exe wojakcoin-tx.exe wojakcoin-qt.exe)
-          ls -la dist
+          ls -lah dist wojakcoin-windows-x86_64.zip
+          test -s wojakcoin-windows-x86_64.zip
+          # Fail if zip is tiny (empty/broken)
+          ZIP_BYTES=$(stat -c%s wojakcoin-windows-x86_64.zip)
+          echo "windows zip bytes=$ZIP_BYTES"
+          if [ "$ZIP_BYTES" -lt 1000000 ]; then
+            echo "ERROR: windows zip too small"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -404,16 +423,44 @@ jobs:
       - name: Flatten and list artifacts
         run: |
           mkdir -p upload
-          # Individual binaries (match 1.12.1.0 layout)
+          # Prefer zip bundles for end users; also keep loose binaries + tar.gz for compatibility.
           find artifacts -type f \( \
             -name 'wojakcoind' -o -name 'wojakcoin-cli' -o -name 'wojakcoin-tx' -o -name 'wojakcoin-qt' -o \
             -name 'wojakcoind-aarch64' -o -name 'wojakcoin-cli-aarch64' -o -name 'wojakcoin-tx-aarch64' -o -name 'wojakcoin-qt-aarch64' -o \
             -name 'wojakcoind.exe' -o -name 'wojakcoin-cli.exe' -o -name 'wojakcoin-tx.exe' -o -name 'wojakcoin-qt.exe' -o \
             -name 'Macosx-WojakCore-Qt.app.zip' -o \
+            -name 'wojakcoin-linux-x86_64.zip' -o -name 'wojakcoin-linux-aarch64.zip' -o \
+            -name 'wojakcoin-windows-x86_64.zip' -o \
             -name 'wojakcoind-macos-arm64' -o -name 'wojakcoin-cli-macos-arm64' -o -name 'wojakcoin-tx-macos-arm64' -o \
             -name '*.tar.gz' -o -name '*.zip' \
           \) -exec cp -f {} upload/ \;
+          echo "=== Release upload set ==="
           ls -lah upload
+          # Required zip bundles must be present
+          for req in \
+            wojakcoin-linux-x86_64.zip \
+            wojakcoin-linux-aarch64.zip \
+            wojakcoin-windows-x86_64.zip \
+            Macosx-WojakCore-Qt.app.zip
+          do
+            if [ ! -f "upload/$req" ]; then
+              echo "ERROR: missing required release asset: $req"
+              find artifacts -type f | sort
+              exit 1
+            fi
+            BYTES=$(stat -c%s "upload/$req")
+            echo "ok $req ($BYTES bytes)"
+            if [ "$BYTES" -lt 100000 ]; then
+              echo "ERROR: $req is suspiciously small ($BYTES)"
+              exit 1
+            fi
+          done
+          # Mac app zip must be a real bundle, not the old empty shell
+          MAC_BYTES=$(stat -c%s upload/Macosx-WojakCore-Qt.app.zip)
+          if [ "$MAC_BYTES" -lt 5000000 ]; then
+            echo "ERROR: Macosx-WojakCore-Qt.app.zip too small ($MAC_BYTES) — empty shell?"
+            exit 1
+          fi
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
