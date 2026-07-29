@@ -65,28 +65,35 @@ jobs:
       - name: Stage artifacts
         run: |
           mkdir -p dist
-          cp -f src/wojakcoind dist/wojakcoind
-          cp -f src/wojakcoin-cli dist/wojakcoin-cli
-          cp -f src/wojakcoin-tx dist/wojakcoin-tx
-          cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt
+          # Platform-labeled names so release downloads are unambiguous
+          cp -f src/wojakcoind      dist/wojakcoind-linux-x86_64
+          cp -f src/wojakcoin-cli   dist/wojakcoin-cli-linux-x86_64
+          cp -f src/wojakcoin-tx    dist/wojakcoin-tx-linux-x86_64
+          cp -f src/qt/wojakcoin-qt dist/wojakcoin-qt-linux-x86_64
           # Zip is the primary release download for Linux x86_64
-          (cd dist && zip -9 ../wojakcoin-linux-x86_64.zip \
-            wojakcoind wojakcoin-cli wojakcoin-tx wojakcoin-qt)
-          tar -C dist -czf wojakcoin-linux-x86_64.tar.gz \
-            wojakcoind wojakcoin-cli wojakcoin-tx wojakcoin-qt
-          ls -lah dist wojakcoin-linux-x86_64.zip
-          test -s wojakcoin-linux-x86_64.zip
+          (cd dist && zip -9 ../wojakcore-linux-x86_64.zip \
+            wojakcoind-linux-x86_64 \
+            wojakcoin-cli-linux-x86_64 \
+            wojakcoin-tx-linux-x86_64 \
+            wojakcoin-qt-linux-x86_64)
+          tar -C dist -czf wojakcore-linux-x86_64.tar.gz \
+            wojakcoind-linux-x86_64 \
+            wojakcoin-cli-linux-x86_64 \
+            wojakcoin-tx-linux-x86_64 \
+            wojakcoin-qt-linux-x86_64
+          ls -lah dist wojakcore-linux-x86_64.zip
+          test -s wojakcore-linux-x86_64.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
           path: |
-            dist/wojakcoind
-            dist/wojakcoin-cli
-            dist/wojakcoin-tx
-            dist/wojakcoin-qt
-            wojakcoin-linux-x86_64.zip
-            wojakcoin-linux-x86_64.tar.gz
+            dist/wojakcoind-linux-x86_64
+            dist/wojakcoin-cli-linux-x86_64
+            dist/wojakcoin-tx-linux-x86_64
+            dist/wojakcoin-qt-linux-x86_64
+            wojakcore-linux-x86_64.zip
+            wojakcore-linux-x86_64.tar.gz
 
   # ---------------------------------------------------------------------------
   # Linux aarch64 (native arm runner, depends, NO_QT)
@@ -144,27 +151,31 @@ jobs:
       - name: Stage artifacts (aarch64 names)
         run: |
           mkdir -p dist
-          cp -f src/wojakcoind dist/wojakcoind-aarch64
-          cp -f src/wojakcoin-cli dist/wojakcoin-cli-aarch64
-          cp -f src/wojakcoin-tx dist/wojakcoin-tx-aarch64
-          # Zip is the primary release download for Linux aarch64
-          (cd dist && zip -9 ../wojakcoin-linux-aarch64.zip \
-            wojakcoind-aarch64 wojakcoin-cli-aarch64 wojakcoin-tx-aarch64)
-          tar -C dist -czf wojakcoin-linux-aarch64.tar.gz \
-            wojakcoind-aarch64 wojakcoin-cli-aarch64 wojakcoin-tx-aarch64
-          ls -lah dist wojakcoin-linux-aarch64.zip
-          test -s wojakcoin-linux-aarch64.zip
+          # Platform-labeled (daemon/cli/tx only — no Qt on aarch64)
+          cp -f src/wojakcoind    dist/wojakcoind-linux-aarch64
+          cp -f src/wojakcoin-cli dist/wojakcoin-cli-linux-aarch64
+          cp -f src/wojakcoin-tx  dist/wojakcoin-tx-linux-aarch64
+          (cd dist && zip -9 ../wojakcore-linux-aarch64.zip \
+            wojakcoind-linux-aarch64 \
+            wojakcoin-cli-linux-aarch64 \
+            wojakcoin-tx-linux-aarch64)
+          tar -C dist -czf wojakcore-linux-aarch64.tar.gz \
+            wojakcoind-linux-aarch64 \
+            wojakcoin-cli-linux-aarch64 \
+            wojakcoin-tx-linux-aarch64
+          ls -lah dist wojakcore-linux-aarch64.zip
+          test -s wojakcore-linux-aarch64.zip
           ./src/wojakcoind -version || true
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-aarch64
           path: |
-            dist/wojakcoind-aarch64
-            dist/wojakcoin-cli-aarch64
-            dist/wojakcoin-tx-aarch64
-            wojakcoin-linux-aarch64.zip
-            wojakcoin-linux-aarch64.tar.gz
+            dist/wojakcoind-linux-aarch64
+            dist/wojakcoin-cli-linux-aarch64
+            dist/wojakcoin-tx-linux-aarch64
+            wojakcore-linux-aarch64.zip
+            wojakcore-linux-aarch64.tar.gz
 
   # ---------------------------------------------------------------------------
   # Windows x86_64 (mingw cross via depends)
@@ -217,17 +228,19 @@ jobs:
       - name: Stage artifacts
         run: |
           mkdir -p dist
-          cp -f src/wojakcoind.exe dist/wojakcoind.exe
-          cp -f src/wojakcoin-cli.exe dist/wojakcoin-cli.exe
-          cp -f src/wojakcoin-tx.exe dist/wojakcoin-tx.exe
-          cp -f src/qt/wojakcoin-qt.exe dist/wojakcoin-qt.exe
-          # Zip is the primary release download for Windows x86_64
-          (cd dist && zip -9 ../wojakcoin-windows-x86_64.zip \
-            wojakcoind.exe wojakcoin-cli.exe wojakcoin-tx.exe wojakcoin-qt.exe)
-          ls -lah dist wojakcoin-windows-x86_64.zip
-          test -s wojakcoin-windows-x86_64.zip
-          # Fail if zip is tiny (empty/broken)
-          ZIP_BYTES=$(stat -c%s wojakcoin-windows-x86_64.zip)
+          # Platform-labeled .exe names
+          cp -f src/wojakcoind.exe      dist/wojakcoind-windows-x86_64.exe
+          cp -f src/wojakcoin-cli.exe   dist/wojakcoin-cli-windows-x86_64.exe
+          cp -f src/wojakcoin-tx.exe    dist/wojakcoin-tx-windows-x86_64.exe
+          cp -f src/qt/wojakcoin-qt.exe dist/wojakcoin-qt-windows-x86_64.exe
+          (cd dist && zip -9 ../wojakcore-windows-x86_64.zip \
+            wojakcoind-windows-x86_64.exe \
+            wojakcoin-cli-windows-x86_64.exe \
+            wojakcoin-tx-windows-x86_64.exe \
+            wojakcoin-qt-windows-x86_64.exe)
+          ls -lah dist wojakcore-windows-x86_64.zip
+          test -s wojakcore-windows-x86_64.zip
+          ZIP_BYTES=$(stat -c%s wojakcore-windows-x86_64.zip)
           echo "windows zip bytes=$ZIP_BYTES"
           if [ "$ZIP_BYTES" -lt 1000000 ]; then
             echo "ERROR: windows zip too small"
@@ -238,8 +251,8 @@ jobs:
         with:
           name: windows-x86_64
           path: |
-            dist/*.exe
-            wojakcoin-windows-x86_64.zip
+            dist/*-windows-x86_64.exe
+            wojakcore-windows-x86_64.zip
 
   # ---------------------------------------------------------------------------
   # macOS arm64 (Homebrew, matching local WojakCore builds)
@@ -314,9 +327,9 @@ jobs:
           test -x src/wojakcoin-tx
           test -x src/qt/wojakcoin-qt
 
-          cp -f src/wojakcoind dist/wojakcoind-macos-arm64
+          cp -f src/wojakcoind    dist/wojakcoind-macos-arm64
           cp -f src/wojakcoin-cli dist/wojakcoin-cli-macos-arm64
-          cp -f src/wojakcoin-tx dist/wojakcoin-tx-macos-arm64
+          cp -f src/wojakcoin-tx  dist/wojakcoin-tx-macos-arm64
 
           # Remove any stale shells from previous runs / accidental leftovers
           rm -rf WojakCore-Qt.app Bitcoin-Qt.app
@@ -375,18 +388,27 @@ jobs:
           # Smoke-test the binary (no GUI)
           "$EXE" -version
 
-          ditto -c -k --sequesterRsrc --keepParent "$APPDIR" Macosx-WojakCore-Qt.app.zip
-          ZIP_BYTES=$(stat -f%z Macosx-WojakCore-Qt.app.zip)
+          # Platform-labeled zip name (not the old empty-shell asset name)
+          APP_ZIP=WojakCore-Qt-macos-arm64.app.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APPDIR" "$APP_ZIP"
+          ZIP_BYTES=$(stat -f%z "$APP_ZIP")
           echo "Zip size bytes=$ZIP_BYTES"
           if [ "$ZIP_BYTES" -lt 5000000 ]; then
             echo "ERROR: zip too small ($ZIP_BYTES) — refusing to upload empty shell"
             exit 1
           fi
 
-          cp -f Macosx-WojakCore-Qt.app.zip dist/
-          tar -C dist -czf wojakcoin-macos-arm64.tar.gz \
-            wojakcoind-macos-arm64 wojakcoin-cli-macos-arm64 wojakcoin-tx-macos-arm64
-          ls -lah dist Macosx-WojakCore-Qt.app.zip
+          cp -f "$APP_ZIP" dist/
+          # CLI tools zip (no GUI frameworks)
+          (cd dist && zip -9 ../wojakcore-macos-arm64-cli.zip \
+            wojakcoind-macos-arm64 \
+            wojakcoin-cli-macos-arm64 \
+            wojakcoin-tx-macos-arm64)
+          tar -C dist -czf wojakcore-macos-arm64-cli.tar.gz \
+            wojakcoind-macos-arm64 \
+            wojakcoin-cli-macos-arm64 \
+            wojakcoin-tx-macos-arm64
+          ls -lah dist "$APP_ZIP" wojakcore-macos-arm64-cli.zip
           ls -la "$APPDIR/Contents/MacOS/"
           ls -la "$APPDIR/Contents/Frameworks/" | head
 
@@ -395,8 +417,9 @@ jobs:
           name: macos-arm64
           path: |
             dist/*
-            Macosx-WojakCore-Qt.app.zip
-            wojakcoin-macos-arm64.tar.gz
+            WojakCore-Qt-macos-arm64.app.zip
+            wojakcore-macos-arm64-cli.zip
+            wojakcore-macos-arm64-cli.tar.gz
 
   # ---------------------------------------------------------------------------
   # Publish all artifacts to the GitHub Release
@@ -423,25 +446,39 @@ jobs:
       - name: Flatten and list artifacts
         run: |
           mkdir -p upload
-          # Prefer zip bundles for end users; also keep loose binaries + tar.gz for compatibility.
+          # Only platform-labeled assets (no bare wojakcoind / .exe without OS-arch)
           find artifacts -type f \( \
-            -name 'wojakcoind' -o -name 'wojakcoin-cli' -o -name 'wojakcoin-tx' -o -name 'wojakcoin-qt' -o \
-            -name 'wojakcoind-aarch64' -o -name 'wojakcoin-cli-aarch64' -o -name 'wojakcoin-tx-aarch64' -o -name 'wojakcoin-qt-aarch64' -o \
-            -name 'wojakcoind.exe' -o -name 'wojakcoin-cli.exe' -o -name 'wojakcoin-tx.exe' -o -name 'wojakcoin-qt.exe' -o \
-            -name 'Macosx-WojakCore-Qt.app.zip' -o \
-            -name 'wojakcoin-linux-x86_64.zip' -o -name 'wojakcoin-linux-aarch64.zip' -o \
-            -name 'wojakcoin-windows-x86_64.zip' -o \
-            -name 'wojakcoind-macos-arm64' -o -name 'wojakcoin-cli-macos-arm64' -o -name 'wojakcoin-tx-macos-arm64' -o \
-            -name '*.tar.gz' -o -name '*.zip' \
+            -name 'wojakcoind-linux-x86_64' -o \
+            -name 'wojakcoin-cli-linux-x86_64' -o \
+            -name 'wojakcoin-tx-linux-x86_64' -o \
+            -name 'wojakcoin-qt-linux-x86_64' -o \
+            -name 'wojakcoind-linux-aarch64' -o \
+            -name 'wojakcoin-cli-linux-aarch64' -o \
+            -name 'wojakcoin-tx-linux-aarch64' -o \
+            -name 'wojakcoind-windows-x86_64.exe' -o \
+            -name 'wojakcoin-cli-windows-x86_64.exe' -o \
+            -name 'wojakcoin-tx-windows-x86_64.exe' -o \
+            -name 'wojakcoin-qt-windows-x86_64.exe' -o \
+            -name 'wojakcoind-macos-arm64' -o \
+            -name 'wojakcoin-cli-macos-arm64' -o \
+            -name 'wojakcoin-tx-macos-arm64' -o \
+            -name 'wojakcore-linux-x86_64.zip' -o \
+            -name 'wojakcore-linux-aarch64.zip' -o \
+            -name 'wojakcore-windows-x86_64.zip' -o \
+            -name 'wojakcore-macos-arm64-cli.zip' -o \
+            -name 'WojakCore-Qt-macos-arm64.app.zip' -o \
+            -name 'wojakcore-linux-x86_64.tar.gz' -o \
+            -name 'wojakcore-linux-aarch64.tar.gz' -o \
+            -name 'wojakcore-macos-arm64-cli.tar.gz' \
           \) -exec cp -f {} upload/ \;
-          echo "=== Release upload set ==="
+          echo "=== Release upload set (platform-labeled) ==="
           ls -lah upload
           # Required zip bundles must be present
           for req in \
-            wojakcoin-linux-x86_64.zip \
-            wojakcoin-linux-aarch64.zip \
-            wojakcoin-windows-x86_64.zip \
-            Macosx-WojakCore-Qt.app.zip
+            wojakcore-linux-x86_64.zip \
+            wojakcore-linux-aarch64.zip \
+            wojakcore-windows-x86_64.zip \
+            WojakCore-Qt-macos-arm64.app.zip
           do
             if [ ! -f "upload/$req" ]; then
               echo "ERROR: missing required release asset: $req"
@@ -456,9 +493,9 @@ jobs:
             fi
           done
           # Mac app zip must be a real bundle, not the old empty shell
-          MAC_BYTES=$(stat -c%s upload/Macosx-WojakCore-Qt.app.zip)
+          MAC_BYTES=$(stat -c%s upload/WojakCore-Qt-macos-arm64.app.zip)
           if [ "$MAC_BYTES" -lt 5000000 ]; then
-            echo "ERROR: Macosx-WojakCore-Qt.app.zip too small ($MAC_BYTES) — empty shell?"
+            echo "ERROR: WojakCore-Qt-macos-arm64.app.zip too small ($MAC_BYTES) — empty shell?"
             exit 1
           fi
 
