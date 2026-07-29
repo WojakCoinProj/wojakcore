@@ -489,38 +489,21 @@ jobs:
       - name: Flatten and list artifacts
         run: |
           mkdir -p upload
-          # Only platform-labeled assets (no bare wojakcoind / .exe without OS-arch)
+          # Publish ONLY the platform zip bundles (no loose binaries / tar.gz twins)
           find artifacts -type f \( \
-            -name 'wojakcoind-linux-x86_64' -o \
-            -name 'wojakcoin-cli-linux-x86_64' -o \
-            -name 'wojakcoin-tx-linux-x86_64' -o \
-            -name 'wojakcoin-qt-linux-x86_64' -o \
-            -name 'wojakcoind-linux-aarch64' -o \
-            -name 'wojakcoin-cli-linux-aarch64' -o \
-            -name 'wojakcoin-tx-linux-aarch64' -o \
-            -name 'wojakcoind-windows-x86_64.exe' -o \
-            -name 'wojakcoin-cli-windows-x86_64.exe' -o \
-            -name 'wojakcoin-tx-windows-x86_64.exe' -o \
-            -name 'wojakcoin-qt-windows-x86_64.exe' -o \
-            -name 'wojakcoind-macos-arm64' -o \
-            -name 'wojakcoin-cli-macos-arm64' -o \
-            -name 'wojakcoin-tx-macos-arm64' -o \
             -name 'wojakcore-linux-x86_64.zip' -o \
             -name 'wojakcore-linux-aarch64.zip' -o \
             -name 'wojakcore-windows-x86_64.zip' -o \
             -name 'wojakcore-macos-arm64-cli.zip' -o \
-            -name 'WojakCore-Qt-macos-arm64.app.zip' -o \
-            -name 'wojakcore-linux-x86_64.tar.gz' -o \
-            -name 'wojakcore-linux-aarch64.tar.gz' -o \
-            -name 'wojakcore-macos-arm64-cli.tar.gz' \
+            -name 'WojakCore-Qt-macos-arm64.app.zip' \
           \) -exec cp -f {} upload/ \;
-          echo "=== Release upload set (platform-labeled) ==="
+          echo "=== Release upload set (zip-only, platform-labeled) ==="
           ls -lah upload
-          # Required zip bundles must be present
           for req in \
             wojakcore-linux-x86_64.zip \
             wojakcore-linux-aarch64.zip \
             wojakcore-windows-x86_64.zip \
+            wojakcore-macos-arm64-cli.zip \
             WojakCore-Qt-macos-arm64.app.zip
           do
             if [ ! -f "upload/$req" ]; then
@@ -535,7 +518,6 @@ jobs:
               exit 1
             fi
           done
-          # Mac app zip must be a real bundle, not the old empty shell
           MAC_BYTES=$(stat -c%s upload/WojakCore-Qt-macos-arm64.app.zip)
           if [ "$MAC_BYTES" -lt 5000000 ]; then
             echo "ERROR: WojakCore-Qt-macos-arm64.app.zip too small ($MAC_BYTES) — empty shell?"
