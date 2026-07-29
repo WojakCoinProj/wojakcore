@@ -233,9 +233,15 @@ jobs:
         run: |
           eval "$(/opt/homebrew/bin/brew shellenv)"
           brew update
+          # protobuf@21 matches typical WojakCore/BIP70-era builds (keg-only).
+          # Latest homebrew protobuf (30+) can break older paymentrequest code.
           brew install automake libtool boost pkg-config python@3 \
-            qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode
-          brew list --versions automake libtool boost pkg-config qt@5 libevent berkeley-db@4 openssl@3
+            qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode protobuf@21
+          brew list --versions automake libtool boost pkg-config qt@5 libevent \
+            berkeley-db@4 openssl@3 qrencode protobuf@21
+          export PKG_CONFIG_PATH="$(brew --prefix protobuf@21)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          pkg-config --modversion protobuf
+          pkg-config --libs protobuf
           ls "$(brew --prefix boost)/include/boost/system" | head
           ls "$(brew --prefix boost)/lib" | head
 
@@ -243,18 +249,24 @@ jobs:
         run: |
           set -e
           eval "$(/opt/homebrew/bin/brew shellenv)"
-          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+          export PATH="$(brew --prefix qt@5)/bin:$(brew --prefix protobuf@21)/bin:$PATH"
           BOOST_PREFIX="$(brew --prefix boost)"
           OPENSSL_PREFIX="$(brew --prefix openssl@3)"
           BDB_PREFIX="$(brew --prefix berkeley-db@4)"
           QT_PREFIX="$(brew --prefix qt@5)"
           EVENT_PREFIX="$(brew --prefix libevent)"
+          PROTOBUF_PREFIX="$(brew --prefix protobuf@21)"
+          QRENCODE_PREFIX="$(brew --prefix qrencode)"
+
+          # Homebrew keg-only / versioned formulae need explicit pkg-config paths
+          export PKG_CONFIG_PATH="${QT_PREFIX}/lib/pkgconfig:${EVENT_PREFIX}/lib/pkgconfig:${OPENSSL_PREFIX}/lib/pkgconfig:${PROTOBUF_PREFIX}/lib/pkgconfig:${QRENCODE_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
           ./autogen.sh
           # Modern Homebrew Boost is mostly header-only for system; need C++14+
           # and explicit -I/-L so AX_BOOST_* macros find headers + libs.
           ./configure \
             --with-gui=qt5 \
+            --with-qrencode \
             --disable-tests \
             --disable-bench \
             --disable-gui-tests \
@@ -262,9 +274,9 @@ jobs:
             --with-boost="${BOOST_PREFIX}" \
             BDB_CFLAGS="-I${BDB_PREFIX}/include" \
             BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" \
-            CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BOOST_PREFIX}/include -I/opt/homebrew/include" \
-            LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BOOST_PREFIX}/lib -L/opt/homebrew/lib" \
-            PKG_CONFIG_PATH="${QT_PREFIX}/lib/pkgconfig:${EVENT_PREFIX}/lib/pkgconfig:${OPENSSL_PREFIX}/lib/pkgconfig" \
+            CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BOOST_PREFIX}/include -I${PROTOBUF_PREFIX}/include -I${QRENCODE_PREFIX}/include -I/opt/homebrew/include" \
+            LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BOOST_PREFIX}/lib -L${PROTOBUF_PREFIX}/lib -L${QRENCODE_PREFIX}/lib -L/opt/homebrew/lib" \
+            PKG_CONFIG_PATH="${PKG_CONFIG_PATH}" \
             CXXFLAGS="-O2 -g -std=c++14" \
             CFLAGS="-O2 -g"
           make -j"$(sysctl -n hw.ncpu)"
