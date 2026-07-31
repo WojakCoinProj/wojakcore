@@ -89,6 +89,12 @@ struct Params {
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
+    /** WojakCoin: DAA V2 fork activation height */
+    int nDifficultyV2ForkHeight;
+    /** WojakCoin: Maximum reorg depth allowed */
+    int nMaxReorgDepth;
+    /** WojakCoin: Height at which reorg limit activates */
+    int nReorgLimitActivationHeight;
     /** The best chain should have at least this much work */
     uint256 nMinimumChainWork;
     /** By default assume that the signatures in ancestors of this block are valid */

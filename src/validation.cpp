@@ -1240,7 +1240,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     if (halvings >= 64)
         return 0;
 
-    CAmount nSubsidy = 50 * COIN;
+    CAmount nSubsidy = 100 * COIN;
     // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
     nSubsidy >>= halvings;
     return nSubsidy;
@@ -2213,6 +2213,35 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     if (block.vtx[0]->GetValueOut() > blockReward) {
         LogPrintf("ERROR: ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)\n", block.vtx[0]->GetValueOut(), blockReward);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-amount");
+    }
+
+    int nDevFundStart = chainparams.GetDevelopmentFundStartHeight();
+    int nDevFundEnd = chainparams.GetLastDevelopmentFundBlockHeight();
+    if (pindex->nHeight > nDevFundStart && pindex->nHeight <= nDevFundEnd) {
+        CAmount nSubsidy = GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+        CAmount nExpectedLP = (nSubsidy * 8) / 100;
+        CAmount nExpectedDevVault = (nSubsidy * 2) / 100;
+
+        if (block.vtx[0]->vout.size() < 3) {
+            LogPrintf("ERROR: ConnectBlock(): coinbase missing development fund outputs\n");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-devfund");
+        }
+        if (block.vtx[0]->vout[1].nValue < nExpectedLP) {
+            LogPrintf("ERROR: ConnectBlock(): LP incentive pool pays too little (actual=%d vs required=%d)\n", block.vtx[0]->vout[1].nValue, nExpectedLP);
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-lppool");
+        }
+        if (block.vtx[0]->vout[1].scriptPubKey != chainparams.GetLPIncentiveScriptAtHeight(pindex->nHeight)) {
+            LogPrintf("ERROR: ConnectBlock(): LP incentive pool wrong script\n");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-lppool-script");
+        }
+        if (block.vtx[0]->vout[2].nValue < nExpectedDevVault) {
+            LogPrintf("ERROR: ConnectBlock(): dev vault pays too little (actual=%d vs required=%d)\n", block.vtx[0]->vout[2].nValue, nExpectedDevVault);
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-devvault");
+        }
+        if (block.vtx[0]->vout[2].scriptPubKey != chainparams.GetDevVaultScriptAtHeight(pindex->nHeight)) {
+            LogPrintf("ERROR: ConnectBlock(): dev vault wrong script\n");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-devvault-script");
+        }
     }
 
     if (!control.Wait()) {

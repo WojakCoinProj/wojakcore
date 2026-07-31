@@ -160,8 +160,31 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vin[0].prevout.SetNull();
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
-    coinbaseTx.vout[0].nValue = nFees + GetBlockSubsidy(nHeight, chainparams.GetConsensus());
+    CAmount nSubsidy = GetBlockSubsidy(nHeight, chainparams.GetConsensus());
+    coinbaseTx.vout[0].nValue = nFees + nSubsidy;
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    bool isDevFundActive = (nHeight > chainparams.GetDevelopmentFundStartHeight()) &&
+                           (nHeight <= chainparams.GetLastDevelopmentFundBlockHeight());
+
+    if (isDevFundActive) {
+        CAmount nLPIncentive = (nSubsidy * 8) / 100;
+        CAmount nDevVault = (nSubsidy * 2) / 100;
+        coinbaseTx.vout[0].nValue -= (nLPIncentive + nDevVault);
+        coinbaseTx.vout.push_back(CTxOut(nLPIncentive, chainparams.GetLPIncentiveScriptAtHeight(nHeight)));
+        coinbaseTx.vout.push_back(CTxOut(nDevVault, chainparams.GetDevVaultScriptAtHeight(nHeight)));
+
+        std::vector<unsigned char> lpOP = chainparams.GetLPIncentiveOPReturn();
+        if (!lpOP.empty()) {
+            coinbaseTx.vout.push_back(CTxOut(0, CScript() << OP_RETURN << lpOP));
+        }
+
+        std::vector<unsigned char> dvOP = chainparams.GetDevVaultOPReturn();
+        if (!dvOP.empty()) {
+            coinbaseTx.vout.push_back(CTxOut(0, CScript() << OP_RETURN << dvOP));
+        }
+    }
+
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chainparams.GetConsensus());
     pblocktemplate->vTxFees[0] = -nFees;

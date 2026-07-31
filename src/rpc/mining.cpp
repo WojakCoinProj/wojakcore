@@ -739,9 +739,27 @@ static RPCHelpMan getblocktemplate()
         CBlockIndex* pindexPrevNew = ::ChainActive().Tip();
         nStart = GetTime();
 
+        int nHeight = pindexPrevNew->nHeight + 1;
+        bool isDevFundActive = (nHeight > Params().GetDevelopmentFundStartHeight()) &&
+                               (nHeight <= Params().GetLastDevelopmentFundBlockHeight());
+
+        CScript scriptPubKey;
+        if (isDevFundActive) {
+            std::string strMinerAddress = gArgs.GetArg("-mineraddress", "");
+            if (strMinerAddress.empty())
+                throw JSONRPCError(RPC_INVALID_PARAMETER,
+                    "Development fund is active. -mineraddress is required for getblocktemplate when dev fund is active.");
+            CTxDestination dest = DecodeDestination(strMinerAddress);
+            if (!IsValidDestination(dest))
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                    strprintf("Invalid miner address: '%s'", strMinerAddress));
+            scriptPubKey = GetScriptForDestination(dest);
+        } else {
+            scriptPubKey = CScript() << OP_TRUE;
+        }
+
         // Create new block
-        CScript scriptDummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler(mempool, Params()).CreateNewBlock(scriptDummy);
+        pblocktemplate = BlockAssembler(mempool, Params()).CreateNewBlock(scriptPubKey);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
@@ -761,6 +779,11 @@ static RPCHelpMan getblocktemplate()
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
 
+    int nHeight = pindexPrev->nHeight + 1;
+    bool isDevFundActive = (nHeight > Params().GetDevelopmentFundStartHeight()) &&
+                           (nHeight <= Params().GetLastDevelopmentFundBlockHeight());
+
+    UniValue txCoinbase(UniValue::VOBJ);
     UniValue transactions(UniValue::VARR);
     std::map<uint256, int64_t> setTxIndex;
     int i = 0;
@@ -769,8 +792,28 @@ static RPCHelpMan getblocktemplate()
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
-        if (tx.IsCoinBase())
+        if (tx.IsCoinBase()) {
+            if (isDevFundActive) {
+                txCoinbase.pushKV("data", EncodeHexTx(tx));
+                txCoinbase.pushKV("txid", txHash.GetHex());
+                txCoinbase.pushKV("hash", tx.GetWitnessHash().GetHex());
+                txCoinbase.pushKV("required", true);
+
+                if (tx.vout.size() > 1) {
+                    txCoinbase.pushKV("lp_incentive_pool", (int64_t)tx.vout[1].nValue);
+                    CTxDestination lpDest;
+                    if (ExtractDestination(tx.vout[1].scriptPubKey, lpDest))
+                        txCoinbase.pushKV("lp_incentive_address", EncodeDestination(lpDest));
+                }
+                if (tx.vout.size() > 2) {
+                    txCoinbase.pushKV("dev_vault", (int64_t)tx.vout[2].nValue);
+                    CTxDestination devDest;
+                    if (ExtractDestination(tx.vout[2].scriptPubKey, devDest))
+                        txCoinbase.pushKV("dev_vault_address", EncodeDestination(devDest));
+                }
+            }
             continue;
+        }
 
         UniValue entry(UniValue::VOBJ);
 
@@ -870,6 +913,8 @@ static RPCHelpMan getblocktemplate()
 
     result.pushKV("previousblockhash", pblock->hashPrevBlock.GetHex());
     result.pushKV("transactions", transactions);
+    if (isDevFundActive && !txCoinbase.empty())
+        result.pushKV("coinbasetxn", txCoinbase);
     result.pushKV("coinbaseaux", aux);
     result.pushKV("coinbasevalue", (int64_t)pblock->vtx[0]->vout[0].nValue);
     result.pushKV("longpollid", ::ChainActive().Tip()->GetBlockHash().GetHex() + ToString(nTransactionsUpdatedLast));
