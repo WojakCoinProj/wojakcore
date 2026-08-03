@@ -111,7 +111,10 @@ public:
      */
     double GetPriority(unsigned int currentHeight) const;
     const CAmount& GetFee() const { return nFee; }
-    size_t GetTxSize() const { return nTxSize; }
+    // Virtual size for fee and mempool accounting: sigop-dense transactions
+    // are treated as if they were -bytespersigop bytes per sigop, so density
+    // raises the required fee instead of being rejected outright.
+    size_t GetTxSize() const;
     int64_t GetTime() const { return nTime; }
     unsigned int GetHeight() const { return entryHeight; }
     bool WasClearAtEntry() const { return hadNoDependencies; }

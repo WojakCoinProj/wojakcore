@@ -32,7 +32,7 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransaction& _tx, const CAmount& _nFee,
     nUsageSize = RecursiveDynamicUsage(tx);
 
     nCountWithDescendants = 1;
-    nSizeWithDescendants = nTxSize;
+    nSizeWithDescendants = GetTxSize();
     nModFeesWithDescendants = nFee;
     CAmount nValueIn = tx.GetValueOut()+nFee;
     assert(inChainInputValue <= nValueIn);
@@ -309,8 +309,13 @@ void CTxMemPool::UpdateForRemoveFromMempool(const setEntries &entriesToRemove)
 void CTxMemPoolEntry::SetDirty()
 {
     nCountWithDescendants = 0;
-    nSizeWithDescendants = nTxSize;
+    nSizeWithDescendants = GetTxSize();
     nModFeesWithDescendants = GetModifiedFee();
+}
+
+size_t CTxMemPoolEntry::GetTxSize() const
+{
+    return std::max(nTxSize, (size_t)sigOpCount * nBytesPerSigOp);
 }
 
 void CTxMemPoolEntry::UpdateState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount)
