@@ -62,6 +62,38 @@ jobs:
           strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx || true
           strip src/qt/wojakcoin-qt || true
 
+      - name: Smoke test daemon (regtest)
+        run: |
+          DATA="$PWD/smoke-data"
+          mkdir -p "$DATA"
+          CLI="./src/wojakcoin-cli -regtest -datadir=$DATA -rpcuser=ci -rpcpassword=ci -rpcport=28499"
+          ./src/wojakcoind -regtest -datadir="$DATA" -listen=0 -server \
+            -rpcuser=ci -rpcpassword=ci -rpcport=28499 -printtoconsole > wojakcoind-smoke.log 2>&1 &
+          DPID=$!
+          ready=0
+          for i in $(seq 1 60); do
+            if $CLI getblockcount >/dev/null 2>&1; then ready=1; break; fi
+            if ! kill -0 "$DPID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            echo "::error::wojakcoind did not become ready on $(uname -m)"
+            tail -n 200 wojakcoind-smoke.log || true
+            sudo dmesg | tail -n 40 || true
+            if kill -0 "$DPID" 2>/dev/null; then
+              sudo apt-get install -y gdb >/dev/null 2>&1 || true
+              sudo gdb -p "$DPID" -batch -ex 'thread apply all bt' || true
+              kill -9 "$DPID" || true
+            fi
+            exit 1
+          fi
+          ADDR="$($CLI getnewaddress)"
+          $CLI generatetoaddress 5 "$ADDR"
+          test "$($CLI getblockcount)" = "5"
+          $CLI stop
+          wait "$DPID" || true
+          echo "smoke test OK on $(uname -m)"
+
       - name: Stage artifacts
         run: |
           mkdir -p dist
@@ -147,6 +179,41 @@ jobs:
             --disable-gui-tests
           make -j${JOBS}
           strip src/wojakcoind src/wojakcoin-cli src/wojakcoin-tx
+
+      # Runs on the native arm64 runner — same environment class as arm64
+      # Docker hosts (Apple Silicon, Graviton). Catches aarch64-only startup
+      # failures that a QEMU-emulated build/check cannot see.
+      - name: Smoke test daemon (regtest)
+        run: |
+          DATA="$PWD/smoke-data"
+          mkdir -p "$DATA"
+          CLI="./src/wojakcoin-cli -regtest -datadir=$DATA -rpcuser=ci -rpcpassword=ci -rpcport=28499"
+          ./src/wojakcoind -regtest -datadir="$DATA" -listen=0 -server \
+            -rpcuser=ci -rpcpassword=ci -rpcport=28499 -printtoconsole > wojakcoind-smoke.log 2>&1 &
+          DPID=$!
+          ready=0
+          for i in $(seq 1 60); do
+            if $CLI getblockcount >/dev/null 2>&1; then ready=1; break; fi
+            if ! kill -0 "$DPID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            echo "::error::wojakcoind did not become ready on $(uname -m)"
+            tail -n 200 wojakcoind-smoke.log || true
+            sudo dmesg | tail -n 40 || true
+            if kill -0 "$DPID" 2>/dev/null; then
+              sudo apt-get install -y gdb >/dev/null 2>&1 || true
+              sudo gdb -p "$DPID" -batch -ex 'thread apply all bt' || true
+              kill -9 "$DPID" || true
+            fi
+            exit 1
+          fi
+          ADDR="$($CLI getnewaddress)"
+          $CLI generatetoaddress 5 "$ADDR"
+          test "$($CLI getblockcount)" = "5"
+          $CLI stop
+          wait "$DPID" || true
+          echo "smoke test OK on $(uname -m)"
 
       - name: Stage artifacts (aarch64 names)
         run: |
