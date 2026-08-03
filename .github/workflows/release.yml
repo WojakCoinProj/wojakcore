@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       upload_tag:
-        description: "If set, upload artifacts to this existing release tag (e.g. 1.12.2.0)"
+        description: "If set, upload artifacts to this existing release tag (e.g. 1.12.3.0)"
         required: false
         default: ""
 

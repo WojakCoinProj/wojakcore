@@ -7,7 +7,7 @@ The official multi-platform Docker image is maintained in a separate repo:
 Hub: **https://hub.docker.com/r/reallyshadydev/wojakcoin-core**
 
 ```bash
-docker pull reallyshadydev/wojakcoin-core:1.12.2.0
+docker pull reallyshadydev/wojakcoin-core:1.12.3.0
 # or
 docker pull reallyshadydev/wojakcoin-core:latest
 ```
