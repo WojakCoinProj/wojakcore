@@ -31,6 +31,7 @@
 #include <util/system.h>
 #include <validation.h>
 #include <validationinterface.h>
+#include <versionbits.h>
 
 #include <memory>
 #include <utility>
@@ -348,6 +349,18 @@ public:
     }
     bool isReadyToBroadcast() override { return !::fImporting && !::fReindex && !isInitialBlockDownload(); }
     bool isInitialBlockDownload() override { return ::ChainstateActive().IsInitialBlockDownload(); }
+    bool isSegwitActive() override
+    {
+        const CBlockIndex* tip = ::ChainActive().Tip();
+        return tip != nullptr && tip->nHeight >= Params().GetConsensus().SegwitHeight;
+    }
+    bool isTaprootActive() override
+    {
+        const CBlockIndex* tip = ::ChainActive().Tip();
+        if (tip == nullptr) return false;
+        static VersionBitsCache vbcache;
+        return VersionBitsState(tip, Params().GetConsensus(), Consensus::DEPLOYMENT_TAPROOT, vbcache) == ThresholdState::ACTIVE;
+    }
     bool shutdownRequested() override { return ShutdownRequested(); }
     int64_t getAdjustedTime() override { return GetAdjustedTime(); }
     void initMessage(const std::string& message) override { ::uiInterface.InitMessage(message); }

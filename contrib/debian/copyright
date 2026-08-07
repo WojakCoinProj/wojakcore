@@ -1,11 +1,11 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Bitcoin
+Upstream-Name: WojakCoin
 Upstream-Contact: Satoshi Nakamoto <satoshin@gmx.com>
- irc://#bitcoin@freenode.net
-Source: https://github.com/bitcoin/bitcoin
+ 
+Source: https://github.com/wojak/wojakcore
 
 Files: *
-Copyright: 2009-2020, Bitcoin Core Developers
+Copyright: 2009-2020, Bitcoin Core Developers, 2024 WojakCoin developers
 License: Expat
 Comment: The Bitcoin Core Developers encompasses the current developers listed on bitcoin.org,
          as well as the numerous contributors to the project.
@@ -76,7 +76,7 @@ License: Expat
 Comment: Modifications of Stephen Hutchings' Typicons
 
 Files: src/qt/res/icons/bitcoin.*
-       share/pixmaps/bitcoin*
+       share/pixmaps/wojakcoin*
        src/qt/res/src/bitcoin.svg
 Copyright: Bitboy, Jonas Schnelli
 License: public-domain

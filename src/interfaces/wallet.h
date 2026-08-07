@@ -258,6 +258,9 @@ public:
     // Get default address type.
     virtual OutputType getDefaultAddressType() = 0;
 
+    //! Check if the chain has activated segwit (BIP 141) yet.
+    virtual bool isSegwitActive() = 0;
+
     //! Get max tx fee.
     virtual CAmount getDefaultMaxTxFee() = 0;
 

@@ -2700,11 +2700,20 @@ static uint32_t GetLocktimeForNewTransaction(interfaces::Chain& chain, const uin
     return locktime;
 }
 
+OutputType CWallet::SanitizeOutputType(const OutputType type) const
+{
+    if ((type == OutputType::BECH32 || type == OutputType::P2SH_SEGWIT) && !chain().isSegwitActive()) {
+        // WojakCoin: chain has not activated segwit yet, force legacy (base58) addresses.
+        return OutputType::LEGACY;
+    }
+    return type;
+}
+
 OutputType CWallet::TransactionChangeType(const Optional<OutputType>& change_type, const std::vector<CRecipient>& vecSend)
 {
     // If -changetype is specified, always use that change type.
     if (change_type) {
-        return *change_type;
+        return SanitizeOutputType(*change_type);
     }
 
     // if m_default_address_type is legacy, use legacy address as change (even
@@ -2720,12 +2729,12 @@ OutputType CWallet::TransactionChangeType(const Optional<OutputType>& change_typ
         int witnessversion = 0;
         std::vector<unsigned char> witnessprogram;
         if (recipient.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
-            return OutputType::BECH32;
+            return SanitizeOutputType(OutputType::BECH32);
         }
     }
 
     // else use m_default_address_type for change
-    return m_default_address_type;
+    return SanitizeOutputType(m_default_address_type);
 }
 
 bool CWallet::CreateTransactionInternal(
@@ -3323,12 +3332,13 @@ bool CWallet::GetNewDestination(const OutputType type, const std::string label, 
     LOCK(cs_wallet);
     error.clear();
     bool result = false;
-    auto spk_man = GetScriptPubKeyMan(type, false /* internal */);
+    const OutputType output_type = SanitizeOutputType(type);
+    auto spk_man = GetScriptPubKeyMan(output_type, false /* internal */);
     if (spk_man) {
         spk_man->TopUp();
-        result = spk_man->GetNewDestination(type, dest, error);
+        result = spk_man->GetNewDestination(output_type, dest, error);
     } else {
-        error = strprintf("Error: No %s addresses available.", FormatOutputType(type));
+        error = strprintf("Error: No %s addresses available.", FormatOutputType(output_type));
     }
     if (result) {
         SetAddressBook(dest, label, "receive");
@@ -3342,7 +3352,8 @@ bool CWallet::GetNewChangeDestination(const OutputType type, CTxDestination& des
     LOCK(cs_wallet);
     error.clear();
 
-    ReserveDestination reservedest(this, type);
+    const OutputType output_type = SanitizeOutputType(type);
+    ReserveDestination reservedest(this, output_type);
     if (!reservedest.GetReservedDestination(dest, true)) {
         error = _("Error: Keypool ran out, please call keypoolrefill first").translated;
         return false;

@@ -35,9 +35,12 @@ config.cache
 config.log
 config.status
 configure
+configure~
 libtool
 src/config/bitcoin-config.h
 src/config/bitcoin-config.h.in
+src/config/wojakcoin-config.h
+src/config/wojakcoin-config.h.in
 src/config/stamp-h1
 src/obj
 share/setup.nsi
@@ -46,6 +49,7 @@ share/qt/Info.plist
 src/univalue/gen
 
 src/qt/*.moc
+object_script.*
 src/qt/moc_*.cpp
 src/qt/forms/ui_*.h
 

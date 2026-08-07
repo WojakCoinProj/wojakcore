@@ -63,10 +63,10 @@ public:
         consensus.BIP16Exception = uint256S("0x000000004536a4f8fa9d88f0001ca9f9825f8d9fd3ba6383a2f030c0427bf085");
         consensus.BIP34Height = 0;
         consensus.BIP34Hash = uint256S("0x000000004536a4f8fa9d88f0001ca9f9825f8d9fd3ba6383a2f030c0427bf085");
-        consensus.BIP65Height = 0;
-        consensus.BIP66Height = 0;
-        consensus.CSVHeight = 0;
-        consensus.SegwitHeight = 0;
+        consensus.BIP65Height = std::numeric_limits<int>::max();
+        consensus.BIP66Height = std::numeric_limits<int>::max();
+        consensus.CSVHeight = std::numeric_limits<int>::max();
+        consensus.SegwitHeight = std::numeric_limits<int>::max();
         consensus.MinBIP9WarningHeight = 0;
         consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 6 * 60;
@@ -85,7 +85,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = std::numeric_limits<int>::max();
-        consensus.nMinimumChainWork = uint256S("0x00");
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000010000");
         consensus.defaultAssumeValid = uint256S("0x00");
 
         // WojakCoin message start (magic bytes)
@@ -129,9 +129,9 @@ public:
             "5LPincentivePoolAddressPlaceholde1",
         };
         vDevVaultAddress = {
-            "5DevVaultAddressPlaceholder11111",
+            "38gywG5YhmpDXNHEtT4KpFBovvoRsZNoVa",
         };
-        vDevelopmentFundStartHeight = 0;
+        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
         vDevelopmentFundLastHeight = 3547800;
         vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
         vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
@@ -139,6 +139,8 @@ public:
         checkpointData = {
             {
                 { 0, uint256S("0x000000004536a4f8fa9d88f0001ca9f9825f8d9fd3ba6383a2f030c0427bf085") },
+                { 500, uint256S("0x000000000000000e9e48539d842e3bc080a8e9821335665883957cb47903a87f") },
+                { 600, uint256S("0x0000000000000010394cccce3cfd3379c10a2b27a360c52890cbbd02f1a27110") },
             }
         };
 
@@ -161,10 +163,10 @@ public:
         consensus.BIP16Exception = uint256();
         consensus.BIP34Height = 0;
         consensus.BIP34Hash = uint256();
-        consensus.BIP65Height = 0;
-        consensus.BIP66Height = 0;
-        consensus.CSVHeight = 0;
-        consensus.SegwitHeight = 0;
+        consensus.BIP65Height = std::numeric_limits<int>::max();
+        consensus.BIP66Height = std::numeric_limits<int>::max();
+        consensus.CSVHeight = std::numeric_limits<int>::max();
+        consensus.SegwitHeight = std::numeric_limits<int>::max();
         consensus.MinBIP9WarningHeight = 0;
         consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 6 * 60;
@@ -183,7 +185,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = std::numeric_limits<int>::max();
-        consensus.nMinimumChainWork = uint256S("0x00");
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000001f4f4f4f4");
         consensus.defaultAssumeValid = uint256S("0x00");
 
         pchMessageStart[0] = 0x4d;
@@ -220,7 +222,7 @@ public:
         vDevVaultAddress = {
             "2MzMgK6BMdNfV7UfFoR5KgC4WgURz6Gkbtx",
         };
-        vDevelopmentFundStartHeight = 0;
+        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
         vDevelopmentFundLastHeight = 3547800;
         vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
         vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
@@ -272,7 +274,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0;
-        consensus.nMinimumChainWork = uint256S("0x00");
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000001");
         consensus.defaultAssumeValid = uint256S("0x00");
 
         pchMessageStart[0] = 0xf3;
@@ -286,7 +288,7 @@ public:
 
         genesis = CreateGenesisBlock(1501724714, 2, 0x207fffff, 1, 100 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
+        assert(consensus.hashGenesisBlock == uint256S("0x37deda870cfb7f1abfaf2a2238635b114eab695a24e6b9efb908dd46d7461144"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -302,14 +304,14 @@ public:
         vDevVaultAddress = {
             "2MzMgK6BMdNfV7UfFoR5KgC4WgURz6Gkbtx",
         };
-        vDevelopmentFundStartHeight = 1;
+        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
         vDevelopmentFundLastHeight = 150000;
         vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
         vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
 
         checkpointData = {
             {
-                {0, uint256S("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")},
+                {0, uint256S("0x37deda870cfb7f1abfaf2a2238635b114eab695a24e6b9efb908dd46d7461144")},
             }
         };
 
@@ -325,14 +327,11 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
-        bech32_hrp = "bcrt";
+        bech32_hrp = "wjrt";
     }
 };
 
-void SetupChainParamsBaseOptions(ArgsManager& argsman)
-{
-    // Handled by chainparamsbase
-}
+void SetupChainParamsBaseOptions(ArgsManager& argsman);
 
 static std::unique_ptr<const CChainParams> globalChainParams;
 
@@ -346,6 +345,8 @@ std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, c
     if (chain == CBaseChainParams::MAIN)
         return std::unique_ptr<const CChainParams>(new CMainParams());
     else if (chain == CBaseChainParams::TESTNET)
+        return std::unique_ptr<const CChainParams>(new CTestNetParams());
+    else if (chain == CBaseChainParams::SIGNET)
         return std::unique_ptr<const CChainParams>(new CTestNetParams());
     else if (chain == CBaseChainParams::REGTEST)
         return std::unique_ptr<const CChainParams>(new CRegTestParams());

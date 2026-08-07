@@ -108,7 +108,7 @@ enum class FeeEstimateMode;
 class ReserveDestination;
 
 //! Default for -addresstype
-constexpr OutputType DEFAULT_ADDRESS_TYPE{OutputType::BECH32};
+constexpr OutputType DEFAULT_ADDRESS_TYPE{OutputType::LEGACY};
 
 static constexpr uint64_t KNOWN_WALLET_FLAGS =
         WALLET_FLAG_AVOID_REUSE
@@ -643,6 +643,13 @@ private:
     std::atomic<int64_t> m_scanning_start{0};
     std::atomic<double> m_scanning_progress{0};
     friend class WalletRescanReserver;
+
+    /**
+     * If the requested output type requires a soft-fork feature (segwit) that
+     * has not yet been activated on the chain, downgrade it to a legacy
+     * (base58) output type so no unsupported addresses are created or used.
+     */
+    OutputType SanitizeOutputType(const OutputType type) const;
 
     //! the current wallet version: clients below this version are not able to load the wallet
     int nWalletVersion GUARDED_BY(cs_wallet){FEATURE_BASE};

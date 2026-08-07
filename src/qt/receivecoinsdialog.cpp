@@ -92,7 +92,13 @@ void ReceiveCoinsDialog::setModel(WalletModel *_model)
         // Last 2 columns are set by the columnResizingFixer, when the table geometry is ready.
         columnResizingFixer = new GUIUtil::TableViewLastColumnResizingFixer(tableView, AMOUNT_MINIMUM_COLUMN_WIDTH, DATE_COLUMN_WIDTH, this);
 
-        if (model->wallet().getDefaultAddressType() == OutputType::BECH32) {
+        const bool segwit_active = model->wallet().isSegwitActive();
+        ui->useBech32->setEnabled(segwit_active);
+        if (!segwit_active) {
+            // WojakCoin: segwit has not been activated on this chain yet, force legacy (base58).
+            ui->useBech32->setCheckState(Qt::Unchecked);
+            ui->useBech32->setToolTip(tr("Segwit (bech32) is not active on this chain yet."));
+        } else if (model->wallet().getDefaultAddressType() == OutputType::BECH32) {
             ui->useBech32->setCheckState(Qt::Checked);
         } else {
             ui->useBech32->setCheckState(Qt::Unchecked);

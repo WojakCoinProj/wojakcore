@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/wojakcoin-config.h>
 #endif
 
 #include <qt/paymentserver.h>
@@ -47,7 +47,7 @@ const QString BITCOIN_IPC_PREFIX("bitcoin:");
 //
 static QString ipcServerName()
 {
-    QString name("BitcoinQt");
+    QString name("WojakCoinQt");
 
     // Append a simple hash of the datadir
     // Note that GetDataDir(true) returns a different path

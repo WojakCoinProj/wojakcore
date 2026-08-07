@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <locale>
 #include <sstream>
@@ -84,7 +85,7 @@ NODISCARD inline bool HasPrefix(const T1& obj,
                                 const std::array<uint8_t, PREFIX_LEN>& prefix)
 {
     return obj.size() >= PREFIX_LEN &&
-           std::equal(std::begin(prefix), std::end(prefix), std::begin(obj));
+           std::equal(prefix.begin(), prefix.end(), obj.begin());
 }
 
 #endif // BITCOIN_UTIL_STRENCODINGS_H

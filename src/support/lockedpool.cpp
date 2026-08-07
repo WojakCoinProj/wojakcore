@@ -6,7 +6,7 @@
 #include <support/cleanse.h>
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/wojakcoin-config.h>
 #endif
 
 #ifdef WIN32
@@ -22,6 +22,7 @@
 #endif
 
 #include <algorithm>
+#include <stdexcept>
 #ifdef ARENA_DEBUG
 #include <iomanip>
 #include <iostream>

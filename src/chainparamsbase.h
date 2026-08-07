@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2019 The Bitcoin Core developers
+// Copyright (c) 2024 WojakCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,8 +12,8 @@
 class ArgsManager;
 
 /**
- * CBaseChainParams defines the base parameters (shared between bitcoin-cli and bitcoind)
- * of a given instance of the Bitcoin system.
+ * CBaseChainParams defines the base parameters (shared between wojakcoin-cli and wojakcoind)
+ * of a given instance of the WojakCoin system.
  */
 class CBaseChainParams
 {

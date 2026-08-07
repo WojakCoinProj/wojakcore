@@ -3548,9 +3548,15 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     if (block.GetBlockTime() <= pindexPrev->GetMedianTimePast())
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "time-too-old", "block's timestamp is too early");
 
-    // Check timestamp
-    if (block.GetBlockTime() > nAdjustedTime + MAX_FUTURE_BLOCK_TIME)
-        return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
+    // Check timestamp (WojakCoin: activation by block time: 15 min if nTime >= activation else 2 h)
+    int64_t nBlockTime = block.GetBlockTime();
+    if (nBlockTime >= ACTIVATE_MAX_FUTURE_BLOCK_TIME_15MIN) {
+        if (nBlockTime > nAdjustedTime + MAX_FUTURE_BLOCK_TIME)
+            return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
+    } else {
+        if (nBlockTime > nAdjustedTime + MAX_FUTURE_BLOCK_TIME_LEGACY)
+            return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
+    }
 
     // Reject outdated version blocks when 95% (75% on testnet) of the network has upgraded:
     // check for version 2, 3 and 4 upgrades

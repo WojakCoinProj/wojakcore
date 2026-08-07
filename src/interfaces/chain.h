@@ -219,6 +219,12 @@ public:
     //! Check if in IBD.
     virtual bool isInitialBlockDownload() = 0;
 
+    //! Check if the chain has activated segwit (BIP 141) yet.
+    virtual bool isSegwitActive() = 0;
+
+    //! Check if the chain has activated taproot (BIP 341) yet.
+    virtual bool isTaprootActive() = 0;
+
     //! Check if shutdown requested.
     virtual bool shutdownRequested() = 0;
 
