@@ -1,5 +1,5 @@
-# Compile check for rebase-0.21.2 — same four platforms as the 1.12 release CI.
-# Does not publish release assets; only verifies the branch builds.
+# Full multi-platform compile with Qt for rebase-0.21.2
+# Jobs match release matrix: Linux x86_64, Linux aarch64, Windows x86_64, macOS arm64
 name: Compile
 
 on:
@@ -14,7 +14,7 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Linux x86_64 (depends + wallet + GUI)
+  # Linux x86_64 — depends (incl. Boost + Qt) + full GUI
   # ---------------------------------------------------------------------------
   linux-amd64:
     name: Linux x86_64
@@ -38,13 +38,13 @@ jobs:
             depends/sources
             depends/work
             depends/SDKs
-          key: depends-021-linux-amd64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
-          restore-keys: depends-021-linux-amd64-
+          key: depends-021-qt-linux-amd64-v2-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**', 'depends/funcs.mk') }}
+          restore-keys: depends-021-qt-linux-amd64-v2-
 
-      - name: Build depends
+      - name: Build depends (with Qt)
         run: make -C depends HOST=x86_64-pc-linux-gnu -j${JOBS}
 
-      - name: Configure and build
+      - name: Configure and build (with Qt)
         run: |
           set -e
           ./autogen.sh
@@ -60,6 +60,7 @@ jobs:
           test -x src/wojakcoin-tx
           test -x src/qt/wojakcoin-qt
           ./src/wojakcoind -version | head -5
+          file src/qt/wojakcoin-qt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,7 +72,7 @@ jobs:
             src/qt/wojakcoin-qt
 
   # ---------------------------------------------------------------------------
-  # Linux aarch64 (native arm runner, depends, NO_QT for speed/reliability)
+  # Linux aarch64 — depends with Qt (native arm runner)
   # ---------------------------------------------------------------------------
   linux-arm64:
     name: Linux aarch64
@@ -84,7 +85,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libtool autotools-dev automake pkg-config \
-            bsdmainutils curl git python3 gperf bison
+            bsdmainutils curl git python3 gperf bison \
+            libxkbcommon-dev libxcb-xinerama0-dev
 
       - name: Cache depends
         uses: actions/cache@v4
@@ -94,31 +96,33 @@ jobs:
             depends/sources
             depends/work
             depends/SDKs
-          key: depends-021-linux-arm64-noqt-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/funcs.mk', 'depends/hosts/**', 'depends/builders/**') }}
-          restore-keys: depends-021-linux-arm64-noqt-
+          key: depends-021-qt-linux-arm64-v2-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**', 'depends/funcs.mk') }}
+          restore-keys: depends-021-qt-linux-arm64-v2-
 
-      - name: Build depends
+      - name: Build depends (with Qt)
         run: |
           HOST="$(./depends/config.guess)"
           echo "HOST=$HOST"
           echo "HOST=$HOST" >> "$GITHUB_ENV"
-          make -C depends HOST="$HOST" NO_QT=1 -j${JOBS}
+          make -C depends HOST="$HOST" -j${JOBS}
 
-      - name: Configure and build
+      - name: Configure and build (with Qt)
         run: |
           set -e
           ./autogen.sh
           CONFIG_SITE="$PWD/depends/${HOST}/share/config.site" ./configure \
             --prefix="$PWD/depends/${HOST}" \
-            --with-gui=no \
             --disable-tests \
             --disable-bench \
-            --disable-gui-tests
+            --disable-gui-tests \
+            --with-gui=qt5
           make -j${JOBS}
           test -x src/wojakcoind
           test -x src/wojakcoin-cli
           test -x src/wojakcoin-tx
+          test -x src/qt/wojakcoin-qt
           ./src/wojakcoind -version | head -5
+          file src/qt/wojakcoin-qt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -127,9 +131,10 @@ jobs:
             src/wojakcoind
             src/wojakcoin-cli
             src/wojakcoin-tx
+            src/qt/wojakcoin-qt
 
   # ---------------------------------------------------------------------------
-  # Windows x86_64 (mingw cross via depends)
+  # Windows x86_64 — mingw depends with Qt
   # ---------------------------------------------------------------------------
   windows:
     name: Windows x86_64
@@ -155,13 +160,15 @@ jobs:
             depends/sources
             depends/work
             depends/SDKs
-          key: depends-021-win-amd64-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**') }}
-          restore-keys: depends-021-win-amd64-
+          key: depends-021-qt-win-amd64-v2-${{ hashFiles('depends/packages/*', 'depends/patches/**', 'depends/Makefile', 'depends/hosts/**', 'depends/builders/**', 'depends/funcs.mk') }}
+          restore-keys: depends-021-qt-win-amd64-v2-
 
-      - name: Build depends
-        run: make -C depends HOST=x86_64-w64-mingw32 -j${JOBS}
+      - name: Build depends (with Qt)
+        run: |
+          # Full Qt GUI cross-build (boost/qt GCC11 patches required)
+          make -C depends HOST=x86_64-w64-mingw32 -j${JOBS}
 
-      - name: Configure and build
+      - name: Configure and build (with Qt)
         run: |
           set -e
           ./autogen.sh
@@ -171,14 +178,15 @@ jobs:
             --disable-tests \
             --disable-bench \
             --disable-gui-tests \
+            --with-gui=qt5 \
             --without-boost-process
-          # MinGW can false-positive -Wreturn-type (Bitcoin Core NO_WERROR pattern)
-          make -j${JOBS} || make -j${JOBS} NO_WERROR=1
-          test -x src/wojakcoind.exe
-          test -x src/wojakcoin-cli.exe
-          test -x src/wojakcoin-tx.exe
-          test -x src/qt/wojakcoin-qt.exe
-          ls -la src/wojakcoind.exe src/wojakcoin-cli.exe src/wojakcoin-tx.exe src/qt/wojakcoin-qt.exe
+          make -j${JOBS}
+          test -f src/wojakcoind.exe
+          test -f src/wojakcoin-cli.exe
+          test -f src/wojakcoin-tx.exe
+          test -f src/qt/wojakcoin-qt.exe
+          ls -lah src/wojakcoind.exe src/wojakcoin-cli.exe src/wojakcoin-tx.exe src/qt/wojakcoin-qt.exe
+          file src/qt/wojakcoin-qt.exe
 
       - uses: actions/upload-artifact@v4
         with:
@@ -190,7 +198,7 @@ jobs:
             src/qt/wojakcoin-qt.exe
 
   # ---------------------------------------------------------------------------
-  # macOS arm64 (Homebrew, native Apple Silicon runner)
+  # macOS arm64 — Homebrew Qt5 (full GUI)
   # ---------------------------------------------------------------------------
   macos:
     name: macOS arm64
@@ -205,9 +213,9 @@ jobs:
           brew install automake libtool boost pkg-config python@3 \
             qt@5 libevent berkeley-db@4 openssl@3 librsvg qrencode miniupnpc
           brew list --versions automake libtool boost pkg-config qt@5 libevent \
-            berkeley-db@4 openssl@3 qrencode miniupnpc || true
+            berkeley-db@4 openssl@3 qrencode miniupnpc
 
-      - name: Configure and build
+      - name: Configure and build (with Qt)
         run: |
           set -e
           eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -219,6 +227,23 @@ jobs:
           EVENT_PREFIX="$(brew --prefix libevent)"
           QRENCODE_PREFIX="$(brew --prefix qrencode)"
 
+          # Modern Homebrew Boost is often header-only for "system"; AX_BOOST_SYSTEM
+          # still looks for -lboost_system. Provide a local link dir that satisfies it.
+          mkdir -p "$PWD/.boost-libs"
+          shopt -s nullglob
+          for f in "$BOOST_PREFIX"/lib/libboost_*.dylib "$BOOST_PREFIX"/lib/libboost_*.a; do
+            ln -sfn "$f" "$PWD/.boost-libs/$(basename "$f")"
+          done
+          # If libboost_system is missing (header-only), alias filesystem for the linker check.
+          if [ ! -e "$PWD/.boost-libs/libboost_system.dylib" ] && [ ! -e "$PWD/.boost-libs/libboost_system.a" ]; then
+            if [ -e "$PWD/.boost-libs/libboost_filesystem.dylib" ]; then
+              ln -sfn libboost_filesystem.dylib "$PWD/.boost-libs/libboost_system.dylib"
+            elif [ -e "$PWD/.boost-libs/libboost_filesystem.a" ]; then
+              ln -sfn libboost_filesystem.a "$PWD/.boost-libs/libboost_system.a"
+            fi
+          fi
+          ls -la "$PWD/.boost-libs" | head -40
+
           export PKG_CONFIG_PATH="${QT_PREFIX}/lib/pkgconfig:${EVENT_PREFIX}/lib/pkgconfig:${OPENSSL_PREFIX}/lib/pkgconfig:${QRENCODE_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
           ./autogen.sh
@@ -229,10 +254,11 @@ jobs:
             --disable-bench \
             --disable-gui-tests \
             --with-boost="${BOOST_PREFIX}" \
+            --with-boost-libdir="$PWD/.boost-libs" \
             BDB_CFLAGS="-I${BDB_PREFIX}/include" \
             BDB_LIBS="-L${BDB_PREFIX}/lib -ldb_cxx-4.8" \
             CPPFLAGS="-I${OPENSSL_PREFIX}/include -I${BOOST_PREFIX}/include -I${QRENCODE_PREFIX}/include -I/opt/homebrew/include" \
-            LDFLAGS="-L${OPENSSL_PREFIX}/lib -L${BOOST_PREFIX}/lib -L${QRENCODE_PREFIX}/lib -L/opt/homebrew/lib" \
+            LDFLAGS="-L${OPENSSL_PREFIX}/lib -L$PWD/.boost-libs -L${QRENCODE_PREFIX}/lib -L/opt/homebrew/lib" \
             PKG_CONFIG_PATH="${PKG_CONFIG_PATH}" \
             CXXFLAGS="-O2 -g -std=c++17" \
             CFLAGS="-O2 -g"
@@ -242,6 +268,7 @@ jobs:
           test -x src/wojakcoin-tx
           test -x src/qt/wojakcoin-qt
           ./src/wojakcoind -version | head -5
+          file src/qt/wojakcoin-qt
 
       - uses: actions/upload-artifact@v4
         with:
