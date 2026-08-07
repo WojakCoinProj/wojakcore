@@ -270,6 +270,108 @@ jobs:
           ./src/wojakcoind -version | head -5
           file src/qt/wojakcoin-qt
 
+      - name: Package WojakCoin-Qt.app
+        run: |
+          set -euo pipefail
+          eval "$(/opt/homebrew/bin/brew shellenv)"
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
+
+          # Build .app shell + install binary as Contents/MacOS/WojakCoin-Qt
+          rm -rf WojakCoin-Qt.app Bitcoin-Qt.app
+          make appbundle
+
+          APPDIR=WojakCoin-Qt.app
+          EXE="$APPDIR/Contents/MacOS/WojakCoin-Qt"
+          if [ ! -x "$EXE" ]; then
+            echo "ERROR: make appbundle did not produce $EXE"
+            find "$APPDIR" -type f 2>/dev/null || true
+            ls -la src/qt/
+            exit 1
+          fi
+
+          # Bundle Qt frameworks + plugins from Homebrew qt@5
+          if ! command -v macdeployqt >/dev/null 2>&1; then
+            echo "ERROR: macdeployqt not found"
+            exit 1
+          fi
+          macdeployqt "$APPDIR" -verbose=1
+
+          # Pull non-Qt Homebrew dylibs (boost, openssl, bdb, event, etc.)
+          python3 contrib/macdeploy/bundle-dylibs.py "$APPDIR"
+
+          # Safety net for common Boost transitive dylibs
+          BOOST_LIB="$(brew --prefix boost)/lib"
+          FW="$APPDIR/Contents/Frameworks"
+          mkdir -p "$FW"
+          for dep in libboost_atomic.dylib libboost_container.dylib libboost_chrono.dylib \
+                     libboost_system.dylib libboost_filesystem.dylib \
+                     libboost_program_options.dylib libboost_thread.dylib; do
+            if [ -f "$BOOST_LIB/$dep" ] && [ ! -f "$FW/$dep" ]; then
+              echo "copy missing $dep"
+              cp -f "$BOOST_LIB/$dep" "$FW/"
+              chmod u+w "$FW/$dep"
+              install_name_tool -id "@executable_path/../Frameworks/$dep" "$FW/$dep" || true
+            fi
+          done
+          for f in "$FW"/libboost_*.dylib; do
+            [ -f "$f" ] || continue
+            chmod u+w "$f"
+            otool -L "$f" | awk '/@loader_path\// {print $1}' | while read -r ref; do
+              base="${ref##*/}"
+              if [ -f "$FW/$base" ]; then
+                install_name_tool -change "$ref" \
+                  "@executable_path/../Frameworks/$base" "$f" || true
+              fi
+            done
+          done
+          python3 contrib/macdeploy/bundle-dylibs.py "$APPDIR"
+
+          # Sign after all install_name rewrites
+          codesign --force --deep --sign - "$APPDIR"
+          codesign -dv --verbose=2 "$APPDIR" 2>&1 | head -20
+
+          APP_BYTES=$(du -sk "$APPDIR" | awk '{print $1 * 1024}')
+          EXE_BYTES=$(stat -f%z "$EXE")
+          echo "App size bytes=$APP_BYTES exe bytes=$EXE_BYTES"
+          if [ "$EXE_BYTES" -lt 1000000 ]; then
+            echo "ERROR: executable too small ($EXE_BYTES)"
+            exit 1
+          fi
+          if [ "$APP_BYTES" -lt 10000000 ]; then
+            echo "ERROR: app bundle too small ($APP_BYTES) — frameworks missing?"
+            find "$APPDIR" -type f | head -50
+            exit 1
+          fi
+
+          # Smoke-test (version may exit non-zero after printing)
+          set +e
+          VER_OUT="$("$EXE" -version 2>&1)"
+          VER_RC=$?
+          set -e
+          echo "$VER_OUT"
+          echo "(exit code $VER_RC)"
+          if ! echo "$VER_OUT" | grep -Eqi 'WojakCoin|version'; then
+            echo "ERROR: bundled app failed to print version"
+            otool -L "$EXE" | head -40
+            ls -la "$FW" | head -40
+            exit 1
+          fi
+          if echo "$VER_OUT" | grep -Eqi 'Library not loaded|dyld\[|Abort trap|image not found'; then
+            echo "ERROR: dyld failure"
+            exit 1
+          fi
+
+          APP_ZIP=WojakCoin-Qt-macos-arm64.app.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APPDIR" "$APP_ZIP"
+          ZIP_BYTES=$(stat -f%z "$APP_ZIP")
+          echo "Zip size bytes=$ZIP_BYTES"
+          if [ "$ZIP_BYTES" -lt 5000000 ]; then
+            echo "ERROR: zip too small ($ZIP_BYTES)"
+            exit 1
+          fi
+          ls -lah "$APP_ZIP" "$APPDIR/Contents/MacOS/"
+          ls -la "$FW" | head -30
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos-arm64
@@ -278,3 +380,4 @@ jobs:
             src/wojakcoin-cli
             src/wojakcoin-tx
             src/qt/wojakcoin-qt
+            WojakCoin-Qt-macos-arm64.app.zip
