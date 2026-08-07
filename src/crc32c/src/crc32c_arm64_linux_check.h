@@ -2,12 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-// ARM Linux-specific code checking for the availability of CRC32C instructions.
+// ARM-specific code checking for the availability of CRC32C instructions.
 
 #ifndef CRC32C_CRC32C_ARM_LINUX_CHECK_H_
 #define CRC32C_CRC32C_ARM_LINUX_CHECK_H_
-
-// X86-specific code checking for the availability of SSE4.2 instructions.
 
 #include <cstddef>
 #include <cstdint>
@@ -18,6 +16,9 @@
 
 #if HAVE_ARM64_CRC32C
 
+// getauxval() is Linux/Android only. Never declare it on Apple — macOS
+// accepts __attribute__((weak)) but still fails to link undefined _getauxval.
+#if !defined(__APPLE__)
 #if HAVE_STRONG_GETAUXVAL
 #include <sys/auxv.h>
 #elif HAVE_WEAK_GETAUXVAL
@@ -27,11 +28,15 @@ extern "C" unsigned long getauxval(unsigned long type) __attribute__((weak));
 
 #define AT_HWCAP 16
 #endif  // HAVE_STRONG_GETAUXVAL || HAVE_WEAK_GETAUXVAL
+#endif  // !__APPLE__
 
 namespace crc32c {
 
 inline bool CanUseArm64Linux() {
-#if HAVE_STRONG_GETAUXVAL || HAVE_WEAK_GETAUXVAL
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__arm64__))
+  // Apple Silicon always exposes the ARMv8 CRC32 extensions used by crc32c.
+  return true;
+#elif HAVE_STRONG_GETAUXVAL || HAVE_WEAK_GETAUXVAL
   // From 'arch/arm64/include/uapi/asm/hwcap.h' in Linux kernel source code.
   constexpr unsigned long kHWCAP_PMULL = 1 << 4;
   constexpr unsigned long kHWCAP_CRC32 = 1 << 7;
