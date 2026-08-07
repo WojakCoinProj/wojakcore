@@ -7,6 +7,8 @@
 #include <logging.h>
 #include <util/system.h>
 
+#include <boost/version.hpp>
+
 bool ExistsBerkeleyDatabase(const fs::path& path);
 #ifdef USE_SQLITE
 bool ExistsSQLiteDatabase(const fs::path& path);
@@ -46,7 +48,11 @@ std::vector<fs::path> ListWalletDir()
     for (auto it = fs::recursive_directory_iterator(wallet_dir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
         if (ec) {
             if (fs::is_directory(*it)) {
+#if BOOST_VERSION >= 107200
+                it.disable_recursion_pending();
+#else
                 it.no_push();
+#endif
                 LogPrintf("%s: %s %s -- skipping.\n", __func__, ec.message(), it->path().string());
             } else {
                 LogPrintf("%s: %s %s\n", __func__, ec.message(), it->path().string());
@@ -59,11 +65,17 @@ std::vector<fs::path> ListWalletDir()
             // This can be replaced by boost::filesystem::lexically_relative once boost is bumped to 1.60.
             const fs::path path = it->path().string().substr(offset);
 
+#if BOOST_VERSION >= 107200
+            const int depth = it.depth();
+#else
+            const int depth = it.level();
+#endif
+
             if (it->status().type() == fs::directory_file &&
                 (ExistsBerkeleyDatabase(it->path()) || ExistsSQLiteDatabase(it->path()))) {
                 // Found a directory which contains wallet.dat btree file, add it as a wallet.
                 paths.emplace_back(path);
-            } else if (it.level() == 0 && it->symlink_status().type() == fs::regular_file && ExistsBerkeleyDatabase(it->path())) {
+            } else if (depth == 0 && it->symlink_status().type() == fs::regular_file && ExistsBerkeleyDatabase(it->path())) {
                 if (it->path().filename() == "wallet.dat") {
                     // Found top-level wallet.dat btree file, add top level directory ""
                     // as a wallet.
@@ -78,7 +90,11 @@ std::vector<fs::path> ListWalletDir()
             }
         } catch (const std::exception& e) {
             LogPrintf("%s: Error scanning %s: %s\n", __func__, it->path().string(), e.what());
+#if BOOST_VERSION >= 107200
+            it.disable_recursion_pending();
+#else
             it.no_push();
+#endif
         }
     }
 
