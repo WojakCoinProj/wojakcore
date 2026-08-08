@@ -126,15 +126,13 @@ public:
         // Development fund: LP incentive pool (8%) + Dev vault (2%) = 10%
         // Miners retain 90% + all transaction fees
         vLPIncentiveAddress = {
-            "5LPincentivePoolAddressPlaceholde1",
+            "3BNf3MaohVD2xskcdTJjpJN327ncweZzjk",
         };
         vDevVaultAddress = {
             "38gywG5YhmpDXNHEtT4KpFBovvoRsZNoVa",
         };
-        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
-        vDevelopmentFundLastHeight = 3547800;
-        vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
-        vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
+        vDevelopmentFundStartHeight = 180000; // WojakCoin: dev fund not yet activated, set to real height when forking
+        vDevelopmentFundLastHeight = 1500000;
 
         checkpointData = {
             {
@@ -217,15 +215,13 @@ public:
         m_is_mockable_chain = false;
 
         vLPIncentiveAddress = {
-            "2N2wC8KpS4LFgMj9ScfBgMFSYjiB1aCnJUi",
+            "2N2vs76WqJwiPAfPAJavcSFMJETznm7w9Hy",
         };
         vDevVaultAddress = {
-            "2MzMgK6BMdNfV7UfFoR5KgC4WgURz6Gkbtx",
+            "2MzFC111aKEKZj9unZagCSCB59H1bdm3Vwp",
         };
         vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
         vDevelopmentFundLastHeight = 3547800;
-        vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
-        vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
 
         checkpointData = {
             {
@@ -306,8 +302,6 @@ public:
         };
         vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
         vDevelopmentFundLastHeight = 150000;
-        vLPIncentiveOPReturn = std::vector<unsigned char>(20, 0x00);
-        vDevVaultOPReturn = std::vector<unsigned char>(20, 0x00);
 
         checkpointData = {
             {

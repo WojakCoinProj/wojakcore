@@ -86,8 +86,6 @@ public:
     CScript GetLPIncentiveScriptAtHeight(int height) const;
     std::string GetDevVaultAddressAtHeight(int height) const;
     CScript GetDevVaultScriptAtHeight(int height) const;
-    std::vector<unsigned char> GetLPIncentiveOPReturn() const { return vLPIncentiveOPReturn; }
-    std::vector<unsigned char> GetDevVaultOPReturn() const { return vDevVaultOPReturn; }
 protected:
     CChainParams() {}
 
@@ -114,8 +112,6 @@ protected:
     std::vector<std::string> vDevVaultAddress;
     int vDevelopmentFundStartHeight;
     int vDevelopmentFundLastHeight;
-    std::vector<unsigned char> vLPIncentiveOPReturn;
-    std::vector<unsigned char> vDevVaultOPReturn;
 };
 
 std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, const std::string& chain);

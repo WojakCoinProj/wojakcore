@@ -173,16 +173,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         coinbaseTx.vout[0].nValue -= (nLPIncentive + nDevVault);
         coinbaseTx.vout.push_back(CTxOut(nLPIncentive, chainparams.GetLPIncentiveScriptAtHeight(nHeight)));
         coinbaseTx.vout.push_back(CTxOut(nDevVault, chainparams.GetDevVaultScriptAtHeight(nHeight)));
-
-        std::vector<unsigned char> lpOP = chainparams.GetLPIncentiveOPReturn();
-        if (!lpOP.empty()) {
-            coinbaseTx.vout.push_back(CTxOut(0, CScript() << OP_RETURN << lpOP));
-        }
-
-        std::vector<unsigned char> dvOP = chainparams.GetDevVaultOPReturn();
-        if (!dvOP.empty()) {
-            coinbaseTx.vout.push_back(CTxOut(0, CScript() << OP_RETURN << dvOP));
-        }
     }
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
