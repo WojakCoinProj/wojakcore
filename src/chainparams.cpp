@@ -220,8 +220,8 @@ public:
         vDevVaultAddress = {
             "2MzFC111aKEKZj9unZagCSCB59H1bdm3Vwp",
         };
-        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
-        vDevelopmentFundLastHeight = 3547800;
+        vDevelopmentFundStartHeight = 2000; // WojakCoin: dev fund not yet activated, set to real height when forking
+        vDevelopmentFundLastHeight = 500000;
 
         checkpointData = {
             {
@@ -295,13 +295,13 @@ public:
         m_is_mockable_chain = true;
 
         vLPIncentiveAddress = {
-            "2N2wC8KpS4LFgMj9ScfBgMFSYjiB1aCnJUi",
+            "2N2vs76WqJwiPAfPAJavcSFMJETznm7w9Hy",
         };
         vDevVaultAddress = {
-            "2MzMgK6BMdNfV7UfFoR5KgC4WgURz6Gkbtx",
+            "2MzFC111aKEKZj9unZagCSCB59H1bdm3Vwp",
         };
-        vDevelopmentFundStartHeight = std::numeric_limits<int>::max(); // WojakCoin: dev fund not yet activated, set to real height when forking
-        vDevelopmentFundLastHeight = 150000;
+        vDevelopmentFundStartHeight = 5; // WojakCoin: dev fund not yet activated, set to real height when forking
+        vDevelopmentFundLastHeight = 5000;
 
         checkpointData = {
             {
