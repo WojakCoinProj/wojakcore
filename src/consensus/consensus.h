@@ -19,11 +19,10 @@ static const int64_t MAX_BLOCK_SIGOPS_COST = 80000;
 static const int COINBASE_MATURITY = 20;  // WojakCoin: 20 blocks maturity
 
 /** Maximum allowed block timestamp in the future (seconds). Tighter than BTC to reduce time-warp attack on difficulty retarget. */
-static const int64_t MAX_FUTURE_BLOCK_TIME = 15 * 60;  // 15 minutes (after activation)
-/** Legacy limit before activation (2 hours, same as Bitcoin). */
+static const int64_t MAX_FUTURE_BLOCK_TIME = 15 * 60;  // 15 minutes (after activation height)
+/** Legacy limit before activation height (2 hours, same as Bitcoin). */
 static const int64_t MAX_FUTURE_BLOCK_TIME_LEGACY = 2 * 60 * 60;
-/** Activation time (Unix timestamp): use 15-min limit for blocks with nTime >= this (chain time, not system time). e.g. 2026-03-19 00:00:00 UTC. */
-static const int64_t ACTIVATE_MAX_FUTURE_BLOCK_TIME_15MIN = 1773878400;
+/** WojakCoin: activation is by block HEIGHT; see consensus.nMaxFutureBlockTimeActivationHeight (chainparams). */
 
 static const int WITNESS_SCALE_FACTOR = 4;
 

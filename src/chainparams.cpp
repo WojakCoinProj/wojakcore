@@ -74,6 +74,7 @@ public:
         consensus.nDifficultyV2ForkHeight = 1000;
         consensus.nMaxReorgDepth = 20;
         consensus.nReorgLimitActivationHeight = 151600;
+        consensus.nMaxFutureBlockTimeActivationHeight = 175000;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916;
@@ -172,6 +173,7 @@ public:
         consensus.nDifficultyV2ForkHeight = 1000;
         consensus.nMaxReorgDepth = 200;
         consensus.nReorgLimitActivationHeight = 0;
+        consensus.nMaxFutureBlockTimeActivationHeight = 0;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512;
@@ -259,6 +261,7 @@ public:
         consensus.nDifficultyV2ForkHeight = 0;
         consensus.nMaxReorgDepth = 0;
         consensus.nReorgLimitActivationHeight = 0;
+        consensus.nMaxFutureBlockTimeActivationHeight = 0;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108;

@@ -95,6 +95,8 @@ struct Params {
     int nMaxReorgDepth;
     /** WojakCoin: Height at which reorg limit activates */
     int nReorgLimitActivationHeight;
+    /** WojakCoin: Height at which 15-min max future block time activates (time-warp hardening) */
+    int nMaxFutureBlockTimeActivationHeight;
     /** The best chain should have at least this much work */
     uint256 nMinimumChainWork;
     /** By default assume that the signatures in ancestors of this block are valid */
