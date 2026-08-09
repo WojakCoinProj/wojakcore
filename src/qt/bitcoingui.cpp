@@ -223,17 +223,36 @@ BitcoinGUI::~BitcoinGUI()
     // Unsubscribe from notifications from core
     unsubscribeFromCoreSignals();
 
+    // Tear down UI in a Cocoa-safe order. On newer macOS (esp. with Qt 5.15),
+    // destroying the main window while it is still key/visible can fire
+    // processActivatedEvent -> QAction::setEnabled on partially destroyed
+    // QActions (SIGSEGV in QAction::setEnabled). Hide first and disconnect
+    // overlay signals so activation callbacks cannot touch dead actions.
+    if (modalOverlay) {
+        modalOverlay->disconnect();
+    }
+    hide();
+    setEnabled(false);
+
     QSettings settings;
     settings.setValue("MainWindowGeometry", saveGeometry());
     if(trayIcon) // Hide tray icon, as deleting will let it linger until quit (on Ubuntu)
         trayIcon->hide();
 #ifdef Q_OS_MAC
     delete m_app_nap_inhibitor;
-    delete appMenuBar;
+    m_app_nap_inhibitor = nullptr;
+    // Detach menu bar actions before delete; deleting while still key triggers
+    // the same QAction::setEnabled crash path via resignKeyWindow.
+    if (appMenuBar) {
+        appMenuBar->clear();
+        delete appMenuBar;
+        appMenuBar = nullptr;
+    }
     MacDockIconHandler::cleanup();
 #endif
 
     delete rpcConsole;
+    rpcConsole = nullptr;
 }
 
 void BitcoinGUI::createActions()

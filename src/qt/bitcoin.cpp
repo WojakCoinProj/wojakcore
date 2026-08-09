@@ -44,6 +44,7 @@
 
 #include <QApplication>
 #include <QDebug>
+#include <QEventLoop>
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QMessageBox>
@@ -235,6 +236,13 @@ BitcoinApplication::~BitcoinApplication()
         qDebug() << __func__ << ": Stopped thread";
     }
 
+    // Hide before destroy so Cocoa does not deliver resignKeyWindow /
+    // processActivatedEvent into QAction slots during ~QWidget (macOS crash).
+    if (window) {
+        window->hide();
+        // Drain deferred activation/hide events while the window is still alive.
+        processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
     delete window;
     window = nullptr;
     delete platformStyle;
