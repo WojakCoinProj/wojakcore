@@ -1775,25 +1775,36 @@ void CConnman::ThreadDNSAddressSeed()
         if (HaveNameProxy()) {
             AddAddrFetch(seed);
         } else {
-            std::vector<CNetAddr> vIPs;
             std::vector<CAddress> vAdd;
             ServiceFlags requiredServiceBits = GetDesirableServiceFlags(NODE_NONE);
-            std::string host = strprintf("x%x.%s", requiredServiceBits, seed);
-            CNetAddr resolveSource;
-            if (!resolveSource.SetInternal(host)) {
-                continue;
-            }
-            unsigned int nMaxIPs = 256; // Limits number of IPs learned from a DNS seed
-            if (LookupHost(host, vIPs, nMaxIPs, true)) {
-                for (const CNetAddr& ip : vIPs) {
-                    int nOneDay = 24*3600;
-                    CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()), requiredServiceBits);
-                    addr.nTime = GetTime() - 3*nOneDay - rng.randrange(4*nOneDay); // use a random age between 3 and 7 days old
-                    vAdd.push_back(addr);
-                    found++;
+            bool foundAddr = false;
+
+            // Query the seed by its bare hostname, like legacy (pre-0.19)
+            // clients, so any plain DNS seed (including the old WojakCoin
+            // dnsseed) works. If that fails, fall back to the service-bit
+            // filtered "x%x." name used by modern seeds.
+            for (const std::string& host : {seed, strprintf("x%x.%s", requiredServiceBits, seed)}) {
+                std::vector<CNetAddr> vIPs;
+                CNetAddr resolveSource;
+                if (!resolveSource.SetInternal(host)) {
+                    continue;
                 }
-                addrman.Add(vAdd, resolveSource);
-            } else {
+                unsigned int nMaxIPs = 256; // Limits number of IPs learned from a DNS seed
+                if (LookupHost(host, vIPs, nMaxIPs, true)) {
+                    for (const CNetAddr& ip : vIPs) {
+                        int nOneDay = 24*3600;
+                        CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()), requiredServiceBits);
+                        addr.nTime = GetTime() - 3*nOneDay - rng.randrange(4*nOneDay); // use a random age between 3 and 7 days old
+                        vAdd.push_back(addr);
+                        found++;
+                    }
+                    addrman.Add(vAdd, resolveSource);
+                    foundAddr = true;
+                    break;
+                }
+            }
+
+            if (!foundAddr) {
                 // We now avoid directly using results from DNS Seeds which do not support service bit filtering,
                 // instead using them as a addrfetch to get nodes with our desired service bits.
                 AddAddrFetch(seed);
