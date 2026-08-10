@@ -74,7 +74,7 @@ public:
         consensus.nDifficultyV2ForkHeight = 1000;
         consensus.nMaxReorgDepth = 20;
         consensus.nReorgLimitActivationHeight = 151600;
-        consensus.nMaxFutureBlockTimeActivationHeight = 175000;
+        consensus.nMaxFutureBlockTimeActivationHeight = 190000;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916;
