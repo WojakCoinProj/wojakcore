@@ -182,16 +182,28 @@ BOOST_AUTO_TEST_CASE(ChainParams_SIGNET_sanity)
     sanity_check_chainparams(*m_node.args, CBaseChainParams::SIGNET);
 }
 
-/* ---- DAA V3: absolute ASERT + RTT unit tests ---- */
+/* ---- DAA V3: calm ASERT + delayed RTT unit tests ---- */
+
+static Consensus::Params MakeV3Params(const Consensus::Params& base)
+{
+    Consensus::Params p = base;
+    p.nAsertActivationHeight = 5;
+    p.nAsertHalfLife = 3 * 60 * 60;
+    p.nAsertRttStartDelay = 15 * 60 + 2 * 60; // FTL + T
+    p.nAsertRttHalfLife = 15 * 60;
+    p.nDifficultyV2ForkHeight = 0;
+    p.fPowAllowMinDifficultyBlocks = false;
+    p.fPowNoRetargeting = false;
+    return p;
+}
 
 BOOST_AUTO_TEST_CASE(asert_on_schedule_unchanged)
 {
-    // nHeightDiff = 0, nTimeDiff = T  →  exponent (T - T) = 0
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
     ref.SetCompact(0x1d00ffff);
     const int64_t T = 120;
-    const int64_t halfLife = 1800; // 30 min
+    const int64_t halfLife = 3 * 60 * 60;
 
     arith_uint256 next = CalculateASERT(ref, T, /*nTimeDiff=*/T, /*nHeightDiff=*/0, powLimit, halfLife);
     BOOST_CHECK_EQUAL(next.GetCompact(), ref.GetCompact());
@@ -199,12 +211,11 @@ BOOST_AUTO_TEST_CASE(asert_on_schedule_unchanged)
 
 BOOST_AUTO_TEST_CASE(asert_behind_schedule_eases)
 {
-    // One half-life late → ~2× easier
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
     ref.SetCompact(0x1c0fffff);
     const int64_t T = 120;
-    const int64_t halfLife = 1800;
+    const int64_t halfLife = 3 * 60 * 60;
 
     const int64_t nTimeDiff = T + halfLife;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, 0, powLimit, halfLife);
@@ -218,14 +229,13 @@ BOOST_AUTO_TEST_CASE(asert_behind_schedule_eases)
 
 BOOST_AUTO_TEST_CASE(asert_ahead_schedule_hardens)
 {
-    // halfLife/T blocks in time T → one half-life ahead → ~2× harder
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
     ref.SetCompact(0x1c0fffff);
     const int64_t T = 120;
-    const int64_t halfLife = 1800;
+    const int64_t halfLife = 3 * 60 * 60;
 
-    const int64_t nHeightDiff = halfLife / T; // 15
+    const int64_t nHeightDiff = halfLife / T;
     const int64_t nTimeDiff = T;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, nHeightDiff, powLimit, halfLife);
 
@@ -241,7 +251,7 @@ BOOST_AUTO_TEST_CASE(asert_clamps_to_pow_limit)
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref = powLimit >> 1;
     const int64_t T = 120;
-    const int64_t halfLife = 1800;
+    const int64_t halfLife = 3 * 60 * 60;
     const int64_t nTimeDiff = T + halfLife * 40;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, 0, powLimit, halfLife);
     BOOST_CHECK(next <= powLimit);
@@ -254,21 +264,16 @@ BOOST_AUTO_TEST_CASE(asert_activation_height_matches_timewarp)
     const auto& c = chainParams->GetConsensus();
     BOOST_CHECK_EQUAL(c.nAsertActivationHeight, c.nMaxFutureBlockTimeActivationHeight);
     BOOST_CHECK_EQUAL(c.nAsertActivationHeight, 190000);
-    BOOST_CHECK_EQUAL(c.nAsertHalfLife, 30 * 60);
+    BOOST_CHECK_EQUAL(c.nAsertHalfLife, 3 * 60 * 60);
+    BOOST_CHECK_EQUAL(c.nAsertRttStartDelay, 15 * 60 + 2 * 60);
     BOOST_CHECK_EQUAL(c.nAsertRttHalfLife, 15 * 60);
 }
 
 BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
 {
-    // After a 30-minute tip gap, next target must ease (ASERT + RTT).
+    // Prior tip gap of 3h: baseline ASERT alone must ease next target.
     const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
-    Consensus::Params params = chainParams->GetConsensus();
-    params.nAsertActivationHeight = 10;
-    params.nAsertHalfLife = 30 * 60;
-    params.nAsertRttHalfLife = 15 * 60;
-    params.nDifficultyV2ForkHeight = 0;
-    params.fPowAllowMinDifficultyBlocks = false;
-    params.fPowNoRetargeting = false;
+    Consensus::Params params = MakeV3Params(chainParams->GetConsensus());
 
     const int N = 40;
     std::vector<CBlockIndex> blocks(N);
@@ -283,13 +288,14 @@ BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
         } else if (i < N - 1) {
             blocks[i].nTime = blocks[i - 1].nTime + params.nPowTargetSpacing;
         } else {
-            blocks[i].nTime = blocks[i - 1].nTime + 30 * 60;
+            blocks[i].nTime = blocks[i - 1].nTime + 3 * 60 * 60; // 3h gap on tip
         }
         blocks[i].nBits = nBits;
         blocks[i].nStatus = BLOCK_VALID_TREE;
         blocks[i].phashBlock = nullptr;
     }
 
+    // On-time candidate: RTT silent (st = T << rtt_start); only baseline acts
     CBlockHeader hdr;
     hdr.nTime = blocks[N - 1].nTime + params.nPowTargetSpacing;
 
@@ -301,17 +307,13 @@ BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
     BOOST_CHECK(nextTarget > tipTarget);
 }
 
-BOOST_AUTO_TEST_CASE(asert_rtt_eases_while_stalled)
+BOOST_AUTO_TEST_CASE(asert_rtt_silent_before_delay)
 {
-    // RTT: same tip, longer candidate nTime → strictly easier nBits (difficulty keeps moving).
+    // Normal / FTL-window solvetimes: RTT must not change nBits vs pure baseline.
     const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
-    Consensus::Params params = chainParams->GetConsensus();
-    params.nAsertActivationHeight = 5;
-    params.nAsertHalfLife = 30 * 60;
-    params.nAsertRttHalfLife = 15 * 60;
-    params.nDifficultyV2ForkHeight = 0;
-    params.fPowAllowMinDifficultyBlocks = false;
-    params.fPowNoRetargeting = false;
+    Consensus::Params params = MakeV3Params(chainParams->GetConsensus());
+    Consensus::Params noRtt = params;
+    noRtt.nAsertRttHalfLife = 0;
 
     const int N = 20;
     std::vector<CBlockIndex> blocks(N);
@@ -326,19 +328,52 @@ BOOST_AUTO_TEST_CASE(asert_rtt_eases_while_stalled)
         blocks[i].phashBlock = nullptr;
     }
 
-    CBlockHeader soon;
-    soon.nTime = blocks[N - 1].nTime + params.nPowTargetSpacing; // on-time
-    CBlockHeader late;
-    late.nTime = blocks[N - 1].nTime + 30 * 60; // 30 min stall while mining this block
+    // st = rtt_start exactly → still silent (only st > delay engages)
+    CBlockHeader atDelay;
+    atDelay.nTime = blocks[N - 1].nTime + params.nAsertRttStartDelay;
+    // st just under delay
+    CBlockHeader under;
+    under.nTime = blocks[N - 1].nTime + params.nAsertRttStartDelay - 1;
 
-    unsigned int bitsSoon = GetNextWorkRequired(&blocks[N - 1], &soon, params);
-    unsigned int bitsLate = GetNextWorkRequired(&blocks[N - 1], &late, params);
+    BOOST_CHECK_EQUAL(
+        GetNextWorkRequired(&blocks[N - 1], &atDelay, params),
+        GetNextWorkRequired(&blocks[N - 1], &atDelay, noRtt));
+    BOOST_CHECK_EQUAL(
+        GetNextWorkRequired(&blocks[N - 1], &under, params),
+        GetNextWorkRequired(&blocks[N - 1], &under, noRtt));
+}
 
-    arith_uint256 tSoon, tLate;
-    tSoon.SetCompact(bitsSoon);
-    tLate.SetCompact(bitsLate);
-    // Longer claimed solvetime → larger target (easier)
-    BOOST_CHECK(tLate > tSoon);
+BOOST_AUTO_TEST_CASE(asert_rtt_eases_only_after_delay)
+{
+    // Past FTL+T: RTT engages; further excess → easier than at the threshold.
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    Consensus::Params params = MakeV3Params(chainParams->GetConsensus());
+
+    const int N = 20;
+    std::vector<CBlockIndex> blocks(N);
+    const int64_t t0 = 1700000000;
+    const unsigned int nBits = 0x1c0fffff;
+    for (int i = 0; i < N; i++) {
+        blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
+        blocks[i].nHeight = i;
+        blocks[i].nTime = t0 + i * params.nPowTargetSpacing;
+        blocks[i].nBits = nBits;
+        blocks[i].nStatus = BLOCK_VALID_TREE;
+        blocks[i].phashBlock = nullptr;
+    }
+
+    CBlockHeader atStart;
+    atStart.nTime = blocks[N - 1].nTime + params.nAsertRttStartDelay; // no RTT yet
+    CBlockHeader deepStall;
+    deepStall.nTime = blocks[N - 1].nTime + params.nAsertRttStartDelay + 15 * 60; // +1 RTT half-life excess
+
+    unsigned int bitsStart = GetNextWorkRequired(&blocks[N - 1], &atStart, params);
+    unsigned int bitsDeep = GetNextWorkRequired(&blocks[N - 1], &deepStall, params);
+
+    arith_uint256 tStart, tDeep;
+    tStart.SetCompact(bitsStart);
+    tDeep.SetCompact(bitsDeep);
+    BOOST_CHECK(tDeep > tStart);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

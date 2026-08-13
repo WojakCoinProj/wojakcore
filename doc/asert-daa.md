@@ -1,65 +1,78 @@
-# WojakCoin DAA V3 — Absolute ASERT + Real-Time Target (RTT)
+# WojakCoin DAA V3 — Calm ASERT + Delayed RTT
 
-## Problem (small multipool chains)
+## Intent
 
-| Algo | Why it fails on Wojak-class chains |
-|------|-------------------------------------|
-| **BTC 2016-block SMA** | Hashrate can leave for weeks of wall time; difficulty barely moves. Small coins die. |
-| **V2 24-block average + 2×/4× clamps** | Multipool burst spikes difficulty; clamps freeze recovery so difficulty “stops moving”; 30–60+ min stalls (seen ~29 min after height 176499). |
-| **Long-half-life ASERT (BCH-style, τ≈days)** | Correct for *stable* hashrate. On multipool chains, recovery is too slow after rented hash leaves. |
-| **Pure ASERT alone** | Next block eases only *after* a hard block is found. While the tip is stuck, **this** block’s target is frozen. |
+Wojak is **not** BCH/BTC: multipool hashrate can swing hard. But fixing that with
+**ultra-short half-lives and continuous RTT** overshoots and destroys stability.
 
-zawy12’s ranking (issue #50): ASERT/EMA are the preferred every-block DAAs; timespan **limits enable attacks**; small coins should prefer **faster** response than BCH’s multi-day smoothing. Extreme on-off (Komodo subchains) used **TSA/RTT** so difficulty keeps moving during a stall.
+V3 goals:
 
-## Solution (activates at height **190000** with 15-min future-time)
+1. **Normal mining** — stable block cadence via a **few-hour** absolute ASERT baseline  
+2. **Near stall / difflock only** — **delayed RTT** eases *this* block after FTL+blocktime  
+3. **Stable hashrate** — RTT stays completely idle  
 
-### Layer 1 — Absolute ASERT (`τ = 30 minutes`)
+Activates at height **190000** with the 15-minute max future block time rule.
+
+## Why not the previous short-τ + continuous RTT draft
+
+| Issue | Effect |
+|-------|--------|
+| τ ≈ 30 min baseline | Over-reacts to Poisson noise and multipool blips → overshoot |
+| RTT from the first second past T | Constant messy swings; every slightly late block eases |
+| BCH τ ≈ 2 days copied naively | Wrong scale discussion: BCH is *stable* hashrate; we want calm hours, not days of paralysis |
+
+BCH’s multi-day half-life is correct for **stable** hash. Wojak uses a **shorter but still multi-hour** baseline so variance settles without panic, plus a **gated** RTT for difflock escape only.
+
+## Design
+
+### Layer 1 — Baseline absolute ASERT (`τ = 3 hours`)
 
 ```
 base = anchor_target * 2^((t_tip − t_ref − (h_tip − h_ref + 1)·T) / τ)
 ```
 
-- `T = 120 s`, `τ = nAsertHalfLife = 1800 s`
-- Anchor = block **189999** (fixed forever → no nBits round-off accumulation)
-- Candidate header time **not** used here (schedule integrity)
-- Integer **aserti3-2d** (BCH/eCash): 16.16 fixed-point + cubic `2^x`
+- `T = 120 s`
+- Anchor = block **189999** (fixed; no nBits error accumulation)
+- Candidate `nTime` **ignored** for the schedule
+- Integer **aserti3-2d** (BCH/eCash)
 
-**30 min late on schedule → ~2× easier next base target** (vs 2 hours previously).
+Under normal variance this is the only layer that matters. A 200× hash burst is braked by ASERT rising on the schedule; after they leave, baseline eases over hours—not locked forever like V2 clamps.
 
-### Layer 2 — Real-time target easing (`τ_rtt = 15 minutes`)
-
-While mining/validating the *current* block with header time `nTime`:
+### Layer 2 — Delayed RTT (stall / difflock escape)
 
 ```
-next = base * 2^((nTime − t_tip − T) / τ_rtt)
+rtt_start = FTL + T = 15 min + 2 min = 17 min
+if st > rtt_start:
+    next = base * 2^((st − rtt_start) / τ_rtt)   # τ_rtt = 15 min
+else:
+    next = base   # RTT completely silent
 ```
 
-- Miners refresh GBT as wall-clock advances → **nBits eases continuously during a stall**
-- Does not wait for a lucky find at the old high difficulty
-- Bounded by the **15-minute max future block time** (same activation height) so free future-stamping is limited
-- Absolute ASERT still uses only the anchor → RTT nBits do **not** poison the long-term schedule
+- One block may sit through a full FTL window **without** RTT thrash  
+- Only after **~17 minutes** of solvetime does difficulty start dropping on *this* block  
+- Excess-only easing → no free swing for ordinary late blocks  
+- Miners refresh GBT after the delay if stuck (difflock break)  
+- Absolute schedule still uses the anchor only  
 
-**~15 min stuck → ~2× easier on this block; ~30 min → ~4×**, etc., until `powLimit`.
+### What we do not claim
 
-### What we deliberately do **not** use
-
-| Rejected | Reason |
-|----------|--------|
-| Timespan 2×/4× clamps | zawy: corrupt hashrate estimate / enable attacks; cause “stuck difficulty” |
-| Cryptonote SMA + cut/lag | Amplifying oscillations on small coins |
-| Long LWMA-only without RTT | Difficulty still frozen on the block being mined |
-| BCH τ=2 days | Wrong scale for multipool volatility |
+- **KMD assetchains** (e.g. POW-heavy modes with POS): stuck behaviour is largely
+  **POS-ratio gating** (wallet rejects excess POW until a POS block), not a pure
+  PoW RTT DAA. That mechanism does **not** exist on non-assetchain KMD/ARRR/HUSH/VRSC.
+- **XEC-style dual wall** (baseline + explosive reject of too-close blocks) is an
+  interesting *secondary* anti-burst idea; not implemented here. Baseline ASERT
+  already brakes sustained 200×; delayed RTT only helps clear the resulting
+  difflock, it does not try to be the attack wall.
 
 ## Parameters (mainnet)
 
-| Param | Value |
-|-------|--------|
-| `nAsertActivationHeight` | **190000** |
-| `nMaxFutureBlockTimeActivationHeight` | **190000** (paired) |
-| `nAsertHalfLife` | **1800** (30 min) |
-| `nAsertRttHalfLife` | **900** (15 min) |
-| `nPowTargetSpacing` | 120 s |
-| Anchor | height **189999** |
+| Param | Value | Role |
+|-------|--------|------|
+| `nAsertActivationHeight` | **190000** | With time-warp FTL |
+| `nAsertHalfLife` | **10800** (3 h) | Calm baseline |
+| `nAsertRttStartDelay` | **1020** (15m+2m) | RTT silent until stall window |
+| `nAsertRttHalfLife` | **900** (15 m) | Ease only *excess* after delay |
+| Anchor | height **189999** | Absolute ASERT reference |
 
 ## Networks
 
@@ -71,7 +84,6 @@ next = base * 2^((nTime − t_tip − T) / τ_rtt)
 
 ## References
 
-- zawy12, [Summary of Difficulty Algorithms #50](https://github.com/zawy12/difficulty-algorithms/issues/50) — ASERT preferred; RTT/TSA for stuck-chain / extreme on-off
-- zawy12, [TSA RTT #36](https://github.com/zawy12/difficulty-algorithms/issues/36)
-- Bitcoin Cash **aserti3-2d** (Mark Lundeberg / Jonathan Toomim / BCHN)
-- Historical Wojak V2 stall: ~29 minutes after block 176499 at ~130–140M difficulty
+- BCH **aserti3-2d** (absolute ASERT integer math)
+- zawy12 difficulty-algorithms discussions (ASERT preferred over clamped SMA; continuous limits are harmful) — used selectively; **not** as a mandate for ultra-short τ on small coins
+- Wojak V2 stall history (~29 min after 176499) — motivates delayed RTT, not continuous RTT

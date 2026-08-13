@@ -72,10 +72,12 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 1000;
-        // DAA V3 (ASERT-RTT) + 15-min max future block time activate together
+        // DAA V3: calm baseline ASERT + delayed RTT (only near stall/difflock)
+        // RTT start = FTL (15m) + blocktime (2m); pairs with future-time rule @ 190k
         consensus.nAsertActivationHeight = 190000;
-        consensus.nAsertHalfLife = 30 * 60;     // 30 min — small-chain multipool recovery
-        consensus.nAsertRttHalfLife = 15 * 60;  // 15 min — ease while tip is stalled
+        consensus.nAsertHalfLife = 3 * 60 * 60;           // 3 hours — normal mining stability
+        consensus.nAsertRttStartDelay = 15 * 60 + 2 * 60; // FTL + T: RTT silent until then
+        consensus.nAsertRttHalfLife = 15 * 60;            // ease only on excess after delay
         consensus.nMaxReorgDepth = 20;
         consensus.nReorgLimitActivationHeight = 151600;
         consensus.nMaxFutureBlockTimeActivationHeight = 190000;
@@ -177,7 +179,8 @@ public:
         consensus.nDifficultyV2ForkHeight = 1000;
         // Testnet: DAA V3 always on (matches time-warp already active at height 0)
         consensus.nAsertActivationHeight = 0;
-        consensus.nAsertHalfLife = 30 * 60;
+        consensus.nAsertHalfLife = 3 * 60 * 60;
+        consensus.nAsertRttStartDelay = 15 * 60 + 2 * 60;
         consensus.nAsertRttHalfLife = 15 * 60;
         consensus.nMaxReorgDepth = 200;
         consensus.nReorgLimitActivationHeight = 0;
@@ -269,7 +272,8 @@ public:
         consensus.nDifficultyV2ForkHeight = 0;
         // Regtest: DAA disabled via fPowNoRetargeting; ASERT height unused
         consensus.nAsertActivationHeight = -1;
-        consensus.nAsertHalfLife = 30 * 60;
+        consensus.nAsertHalfLife = 3 * 60 * 60;
+        consensus.nAsertRttStartDelay = 15 * 60 + 2 * 60;
         consensus.nAsertRttHalfLife = 15 * 60;
         consensus.nMaxReorgDepth = 0;
         consensus.nReorgLimitActivationHeight = 0;

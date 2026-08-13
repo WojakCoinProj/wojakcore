@@ -93,21 +93,27 @@ struct Params {
     int nDifficultyV2ForkHeight;
     /**
      * WojakCoin: Height of the first block whose *nBits* use DAA V3
-     * (absolute ASERT + real-time target easing). Must match
+     * (absolute ASERT baseline + delayed RTT stall escape). Must match
      * nMaxFutureBlockTimeActivationHeight (mainnet: 190000).
      * 0 = always-on (testnet); negative = disabled (regtest / fPowNoRetargeting).
      */
     int nAsertActivationHeight;
     /**
-     * Absolute ASERT half-life (seconds). Schedule lag of one half-life → 2× target.
-     * Small-chain multipool: SHORT (30 min). BCH-scale stable hashrate uses days.
+     * Baseline absolute ASERT half-life (seconds). One half-life of schedule
+     * lag → 2× target. Few hours keeps block cadence stable under normal
+     * hashrate variance (not multipool panic-reactive).
      */
     int64_t nAsertHalfLife;
     /**
-     * Real-time target (RTT) half-life (seconds). While mining the *current*
-     * block, target eases with claimed solvetime so difficulty keeps moving
-     * during a stall (does not wait for a find before recovering).
-     * Tuned near the 15-min future-time limit. 0 disables RTT (pure ASERT).
+     * Delayed RTT: solvetime must exceed this many seconds past the parent
+     * before RTT eases *this* block. Intended as FTL + blocktime so normal
+     * mining never triggers RTT; only near-stall / difflock does.
+     * 0 with nAsertRttHalfLife>0 would mean RTT from the first second (avoid).
+     */
+    int64_t nAsertRttStartDelay;
+    /**
+     * RTT half-life (seconds) applied only to *excess* solvetime after
+     * nAsertRttStartDelay. 0 disables RTT entirely (pure baseline ASERT).
      */
     int64_t nAsertRttHalfLife;
     /** WojakCoin: Maximum reorg depth allowed */

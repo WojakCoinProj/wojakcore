@@ -78,26 +78,26 @@ unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHe
 }
 
 // ---------------------------------------------------------------------------
-// DAA V3 — absolute ASERT (aserti3-2d) + real-time target (RTT) easing.
+// DAA V3 — calm absolute ASERT + *delayed* RTT (stall / difflock escape only).
 //
-// Research (zawy12 difficulty-algorithms #50; BCH aserti3-2d; Komodo TSA-RTT):
-//  - BTC/LTC 2016-block SMA: small coins die under multipool (on-off mining).
-//  - V2 24-block average + 2×/4× clamps: recovery freezes at the clamp;
-//    difficulty can "stop moving" after a hashrate spike.
-//  - ASERT is the only (near) perfectly correct every-block DAA for a target
-//    schedule. BCH uses τ≈2 days — fine when hashrate is stable.
-//  - Small multipool chains need SHORT half-life (minutes, not days) or the
-//    chain stalls for hours after rented hashrate leaves.
-//  - Pure ASERT still freezes *this* block's target until it is found. RTT
-//    (zawy TSA family) eases the current block as solvetime grows so
-//    difficulty keeps moving during a stall. Absolute ASERT for the schedule
-//    is independent of intermediate nBits, so RTT does not poison the anchor.
+// Design goals (Wojak is multipool-volatile, not BCH-stable hashrate):
+//  - Baseline ASERT with a *few-hour* half-life keeps block cadence stable
+//    under normal variance. Not panic-reactive; overshoot stays modest.
+//  - RTT must NOT act on every block. Continuous short RTT overshoots badly.
+//  - RTT starts only after solvetime > (FTL + blocktime): one block may stall
+//    through the future-time window, then difficulty eases automatically to
+//    break difflock from a prior hashrate spike. Under stable hash, RTT is idle.
+//  - Absolute ASERT uses a fixed pre-activation anchor; RTT nBits do not
+//    accumulate into the long-term schedule.
 //
-// Schedule (absolute ASERT, ignore candidate nTime):
-//   base = anchor_target * 2^((t_tip - t_ref - (h_tip - h_ref + 1)*T) / τ)
-// RTT (when mining/validating a header with nTime):
-//   next = base * 2^((nTime - t_tip - T) / τ_rtt)
-// τ = nAsertHalfLife (30m), τ_rtt = nAsertRttHalfLife (15m), T = 120s.
+// Layer 1 (always, candidate nTime ignored):
+//   base = anchor * 2^((t_tip - t_ref - (h_tip - h_ref + 1)*T) / τ)
+// Layer 2 (only if pblock and st > rtt_start):
+//   next = base * 2^((st - rtt_start) / τ_rtt)
+//   with rtt_start = FTL + T (= 15m + 2m), τ ≈ few hours, τ_rtt = 15m.
+//
+// Note: KMD assetchain "stuck POW" behaviour is POS-ratio gating (need POS
+// after enough POW), not a pure PoW RTT DAA — do not conflate the two.
 // ---------------------------------------------------------------------------
 
 arith_uint256 CalculateASERT(const arith_uint256& refTarget,
@@ -195,7 +195,7 @@ unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBloc
         return powLimit.GetCompact();
     }
 
-    // --- Layer 1: absolute ASERT from tip schedule (candidate nTime ignored) ---
+    // --- Layer 1: baseline absolute ASERT (candidate nTime ignored) ---
     const int64_t nTimeDiff = pindexLast->GetBlockTime() - nAnchorPrevTime;
     const int64_t nHeightDiff = static_cast<int64_t>(pindexLast->nHeight) - pindexAnchor->nHeight;
 
@@ -207,27 +207,27 @@ unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBloc
         powLimit,
         params.nAsertHalfLife);
 
-    // --- Layer 2: real-time easing for the block being mined/validated ---
-    // As solvetime grows past T, THIS block's target eases so the chain does
-    // not sit at a frozen high difficulty until someone lucks a find.
-    // Miners refresh GBT with current time; nBits drops continuously while stalled.
-    // Bounded by FTL (15 min after activation) so free future-stamping is limited.
-    if (params.nAsertRttHalfLife > 0 && pblock != nullptr) {
-        int64_t st = pblock->GetBlockTime() - pindexLast->GetBlockTime();
-        // Reject non-positive solvetimes for RTT (monotonicity); keep base ASERT.
-        if (st < 1) st = 1;
-        // Cap extreme claims (paranoia); FTL already limits honest-ish future.
-        const int64_t stCap = params.nAsertRttHalfLife * 32; // ≤ 2^32 ease theoretically
-        if (st > stCap) st = stCap;
-
-        // next = base * 2^((st - T) / τ_rtt)  via CalculateASERT(heightDiff=0)
-        nextTarget = CalculateASERT(
-            nextTarget,
-            params.nPowTargetSpacing,
-            st,
-            /*nHeightDiff=*/0,
-            powLimit,
-            params.nAsertRttHalfLife);
+    // --- Layer 2: delayed RTT — only near stall / difflock ---
+    // Silent while st ≤ rtt_start (normal mining + full FTL window).
+    // After that, ease only on *excess* time so we do not swing every block.
+    //   next = base * 2^((st - rtt_start) / τ_rtt)
+    if (params.nAsertRttHalfLife > 0 && params.nAsertRttStartDelay > 0 && pblock != nullptr) {
+        const int64_t st = pblock->GetBlockTime() - pindexLast->GetBlockTime();
+        const int64_t rttStart = params.nAsertRttStartDelay;
+        if (st > rttStart) {
+            int64_t excess = st - rttStart;
+            // Cap excess to limit pathological timestamps (FTL already bounds future).
+            const int64_t excessCap = params.nAsertRttHalfLife * 32;
+            if (excess > excessCap) excess = excessCap;
+            // CalculateASERT(base, T, excess+T, 0) => base * 2^((excess+T-T)/τ) = base * 2^(excess/τ)
+            nextTarget = CalculateASERT(
+                nextTarget,
+                params.nPowTargetSpacing,
+                excess + params.nPowTargetSpacing,
+                /*nHeightDiff=*/0,
+                powLimit,
+                params.nAsertRttHalfLife);
+        }
     }
 
     return nextTarget.GetCompact();
