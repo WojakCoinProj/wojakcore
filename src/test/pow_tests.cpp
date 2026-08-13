@@ -182,41 +182,35 @@ BOOST_AUTO_TEST_CASE(ChainParams_SIGNET_sanity)
     sanity_check_chainparams(*m_node.args, CBaseChainParams::SIGNET);
 }
 
-/* ---- ASERT (aserti3-2d) unit tests ---- */
+/* ---- DAA V3: absolute ASERT + RTT unit tests ---- */
 
 BOOST_AUTO_TEST_CASE(asert_on_schedule_unchanged)
 {
-    // If the chain is exactly on schedule, target stays (nearly) equal to anchor.
-    // nHeightDiff = 0, nTimeDiff = T  →  exponent uses (T - T*(0+1)) = 0
+    // nHeightDiff = 0, nTimeDiff = T  →  exponent (T - T) = 0
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
     ref.SetCompact(0x1d00ffff);
     const int64_t T = 120;
-    const int64_t halfLife = 7200;
+    const int64_t halfLife = 1800; // 30 min
 
     arith_uint256 next = CalculateASERT(ref, T, /*nTimeDiff=*/T, /*nHeightDiff=*/0, powLimit, halfLife);
-    // Exactly on schedule → identical compact target
     BOOST_CHECK_EQUAL(next.GetCompact(), ref.GetCompact());
 }
 
 BOOST_AUTO_TEST_CASE(asert_behind_schedule_eases)
 {
-    // One full half-life behind schedule → target roughly doubles (easier).
+    // One half-life late → ~2× easier
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
-    ref.SetCompact(0x1c0fffff); // mid-range target
+    ref.SetCompact(0x1c0fffff);
     const int64_t T = 120;
-    const int64_t halfLife = 7200;
+    const int64_t halfLife = 1800;
 
-    // nHeightDiff=0, time = T + halfLife  →  one half-life late for the next block
     const int64_t nTimeDiff = T + halfLife;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, 0, powLimit, halfLife);
 
-    // next ≈ 2 * ref  (within polynomial approximation tolerance)
     arith_uint256 twice = ref << 1;
-    // Allow small relative error from cubic 2^x approx
     BOOST_CHECK(next > ref);
-    // next should be within ~0.1% of 2*ref
     arith_uint256 lo = (twice * 999) / 1000;
     arith_uint256 hi = (twice * 1001) / 1000;
     BOOST_CHECK(next >= lo && next <= hi);
@@ -224,19 +218,15 @@ BOOST_AUTO_TEST_CASE(asert_behind_schedule_eases)
 
 BOOST_AUTO_TEST_CASE(asert_ahead_schedule_hardens)
 {
-    // One full half-life ahead of schedule → target roughly halves (harder).
+    // halfLife/T blocks in time T → one half-life ahead → ~2× harder
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
     arith_uint256 ref;
     ref.SetCompact(0x1c0fffff);
     const int64_t T = 120;
-    const int64_t halfLife = 7200;
+    const int64_t halfLife = 1800;
 
-    // nHeightDiff=0, time = T - halfLife (clamped by reality but math works)
-    // Better: heightDiff large with small time → ahead of schedule
-    // nHeightDiff = halfLife/T = 60 blocks, nTimeDiff = T  (only 1 interval of wall time for 60 blocks)
-    // exponent = (T - T*(60+1)) / halfLife = T*(-60)/halfLife = 120*-60/7200 = -1.0 → half
-    const int64_t nHeightDiff = halfLife / T; // 60
-    const int64_t nTimeDiff = T; // only one spacing of wall time
+    const int64_t nHeightDiff = halfLife / T; // 15
+    const int64_t nTimeDiff = T;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, nHeightDiff, powLimit, halfLife);
 
     arith_uint256 half = ref >> 1;
@@ -249,11 +239,9 @@ BOOST_AUTO_TEST_CASE(asert_ahead_schedule_hardens)
 BOOST_AUTO_TEST_CASE(asert_clamps_to_pow_limit)
 {
     const arith_uint256 powLimit = UintToArith256(uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
-    // Start near powLimit; large positive lag should clamp
     arith_uint256 ref = powLimit >> 1;
     const int64_t T = 120;
-    const int64_t halfLife = 7200;
-    // Many half-lives late
+    const int64_t halfLife = 1800;
     const int64_t nTimeDiff = T + halfLife * 40;
     arith_uint256 next = CalculateASERT(ref, T, nTimeDiff, 0, powLimit, halfLife);
     BOOST_CHECK(next <= powLimit);
@@ -262,24 +250,23 @@ BOOST_AUTO_TEST_CASE(asert_clamps_to_pow_limit)
 
 BOOST_AUTO_TEST_CASE(asert_activation_height_matches_timewarp)
 {
-    // Mainnet consensus: ASERT and 15-min future-time activate together.
     const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
     const auto& c = chainParams->GetConsensus();
     BOOST_CHECK_EQUAL(c.nAsertActivationHeight, c.nMaxFutureBlockTimeActivationHeight);
     BOOST_CHECK_EQUAL(c.nAsertActivationHeight, 190000);
-    BOOST_CHECK_EQUAL(c.nAsertHalfLife, 2 * 60 * 60);
+    BOOST_CHECK_EQUAL(c.nAsertHalfLife, 30 * 60);
+    BOOST_CHECK_EQUAL(c.nAsertRttHalfLife, 15 * 60);
 }
 
 BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
 {
-    // Simulate multipool leave: 24 on-schedule blocks, then a 30-minute stall
-    // at the tip. Next target must be strictly easier than the tip's target.
+    // After a 30-minute tip gap, next target must ease (ASERT + RTT).
     const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
     Consensus::Params params = chainParams->GetConsensus();
-    // Force ASERT on for synthetic chain at low height
     params.nAsertActivationHeight = 10;
-    params.nAsertHalfLife = 2 * 60 * 60;
-    params.nDifficultyV2ForkHeight = 0; // skip V2
+    params.nAsertHalfLife = 30 * 60;
+    params.nAsertRttHalfLife = 15 * 60;
+    params.nDifficultyV2ForkHeight = 0;
     params.fPowAllowMinDifficultyBlocks = false;
     params.fPowNoRetargeting = false;
 
@@ -291,20 +278,18 @@ BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
     for (int i = 0; i < N; i++) {
         blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
         blocks[i].nHeight = i;
-        // On schedule until last block; last gap is 30 minutes
         if (i == 0) {
             blocks[i].nTime = t0;
         } else if (i < N - 1) {
             blocks[i].nTime = blocks[i - 1].nTime + params.nPowTargetSpacing;
         } else {
-            blocks[i].nTime = blocks[i - 1].nTime + 30 * 60; // 30 min stall
+            blocks[i].nTime = blocks[i - 1].nTime + 30 * 60;
         }
         blocks[i].nBits = nBits;
         blocks[i].nStatus = BLOCK_VALID_TREE;
         blocks[i].phashBlock = nullptr;
     }
 
-    // Build fake header for GetNextWorkRequired (timestamp not used by ASERT)
     CBlockHeader hdr;
     hdr.nTime = blocks[N - 1].nTime + params.nPowTargetSpacing;
 
@@ -313,8 +298,47 @@ BOOST_AUTO_TEST_CASE(asert_chain_stall_recovers)
     arith_uint256 tipTarget, nextTarget;
     tipTarget.SetCompact(nBits);
     nextTarget.SetCompact(nextBits);
-    // After a 30-minute stall, ASERT must ease (larger target)
     BOOST_CHECK(nextTarget > tipTarget);
+}
+
+BOOST_AUTO_TEST_CASE(asert_rtt_eases_while_stalled)
+{
+    // RTT: same tip, longer candidate nTime → strictly easier nBits (difficulty keeps moving).
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    Consensus::Params params = chainParams->GetConsensus();
+    params.nAsertActivationHeight = 5;
+    params.nAsertHalfLife = 30 * 60;
+    params.nAsertRttHalfLife = 15 * 60;
+    params.nDifficultyV2ForkHeight = 0;
+    params.fPowAllowMinDifficultyBlocks = false;
+    params.fPowNoRetargeting = false;
+
+    const int N = 20;
+    std::vector<CBlockIndex> blocks(N);
+    const int64_t t0 = 1700000000;
+    const unsigned int nBits = 0x1c0fffff;
+    for (int i = 0; i < N; i++) {
+        blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
+        blocks[i].nHeight = i;
+        blocks[i].nTime = t0 + i * params.nPowTargetSpacing;
+        blocks[i].nBits = nBits;
+        blocks[i].nStatus = BLOCK_VALID_TREE;
+        blocks[i].phashBlock = nullptr;
+    }
+
+    CBlockHeader soon;
+    soon.nTime = blocks[N - 1].nTime + params.nPowTargetSpacing; // on-time
+    CBlockHeader late;
+    late.nTime = blocks[N - 1].nTime + 30 * 60; // 30 min stall while mining this block
+
+    unsigned int bitsSoon = GetNextWorkRequired(&blocks[N - 1], &soon, params);
+    unsigned int bitsLate = GetNextWorkRequired(&blocks[N - 1], &late, params);
+
+    arith_uint256 tSoon, tLate;
+    tSoon.SetCompact(bitsSoon);
+    tLate.SetCompact(bitsLate);
+    // Longer claimed solvetime → larger target (easier)
+    BOOST_CHECK(tLate > tSoon);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

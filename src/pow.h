@@ -22,9 +22,9 @@ unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBloc
 unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params&);
 
 /**
- * Pure ASERT (aserti3-2d) target calculation. Exposed for unit tests.
- * next_target ≈ refTarget * 2^((nTimeDiff - nPowTargetSpacing * (nHeightDiff + 1)) / nHalfLife)
- * Clamps to [1, powLimit].
+ * Pure ASERT (aserti3-2d) target step. Exposed for unit tests.
+ * next ≈ ref * 2^((nTimeDiff - nPowTargetSpacing * (nHeightDiff + 1)) / nHalfLife)
+ * Clamps to [1, powLimit]. Used for both schedule ASERT and RTT easing.
  */
 arith_uint256 CalculateASERT(const arith_uint256& refTarget,
                              int64_t nPowTargetSpacing,

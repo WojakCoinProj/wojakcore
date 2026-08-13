@@ -92,17 +92,24 @@ struct Params {
     /** WojakCoin: DAA V2 fork activation height */
     int nDifficultyV2ForkHeight;
     /**
-     * WojakCoin: Height of the first block whose *nBits* are computed with ASERT (aserti3-2d).
-     * Must match nMaxFutureBlockTimeActivationHeight so DAA + 15-min future-time
-     * hardening activate together (mainnet: 190000).
-     * Use 0 for always-on (testnet); negative to disable (regtest relies on fPowNoRetargeting).
+     * WojakCoin: Height of the first block whose *nBits* use DAA V3
+     * (absolute ASERT + real-time target easing). Must match
+     * nMaxFutureBlockTimeActivationHeight (mainnet: 190000).
+     * 0 = always-on (testnet); negative = disabled (regtest / fPowNoRetargeting).
      */
     int nAsertActivationHeight;
     /**
-     * WojakCoin: ASERT half-life in seconds. Every half-life of schedule skew
-     * doubles/halves target. 2 hours suits 2-minute blocks + multipool recovery.
+     * Absolute ASERT half-life (seconds). Schedule lag of one half-life → 2× target.
+     * Small-chain multipool: SHORT (30 min). BCH-scale stable hashrate uses days.
      */
     int64_t nAsertHalfLife;
+    /**
+     * Real-time target (RTT) half-life (seconds). While mining the *current*
+     * block, target eases with claimed solvetime so difficulty keeps moving
+     * during a stall (does not wait for a find before recovering).
+     * Tuned near the 15-min future-time limit. 0 disables RTT (pure ASERT).
+     */
+    int64_t nAsertRttHalfLife;
     /** WojakCoin: Maximum reorg depth allowed */
     int nMaxReorgDepth;
     /** WojakCoin: Height at which reorg limit activates */

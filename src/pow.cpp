@@ -78,17 +78,26 @@ unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHe
 }
 
 // ---------------------------------------------------------------------------
-// ASERT (aserti3-2d) — absolutely scheduled exponentially rising targets.
-// Ported from Bitcoin Cash / eCash (MIT), tuned for WojakCoin 2-minute blocks.
+// DAA V3 — absolute ASERT (aserti3-2d) + real-time target (RTT) easing.
 //
-// next_target = ref_target * 2^((t - t_ref - (h - h_ref + 1) * T) / tau)
+// Research (zawy12 difficulty-algorithms #50; BCH aserti3-2d; Komodo TSA-RTT):
+//  - BTC/LTC 2016-block SMA: small coins die under multipool (on-off mining).
+//  - V2 24-block average + 2×/4× clamps: recovery freezes at the clamp;
+//    difficulty can "stop moving" after a hashrate spike.
+//  - ASERT is the only (near) perfectly correct every-block DAA for a target
+//    schedule. BCH uses τ≈2 days — fine when hashrate is stable.
+//  - Small multipool chains need SHORT half-life (minutes, not days) or the
+//    chain stalls for hours after rented hashrate leaves.
+//  - Pure ASERT still freezes *this* block's target until it is found. RTT
+//    (zawy TSA family) eases the current block as solvetime grows so
+//    difficulty keeps moving during a stall. Absolute ASERT for the schedule
+//    is independent of intermediate nBits, so RTT does not poison the anchor.
 //
-// Benefits over V2 for Wojak:
-//  - Continuous recovery: a long tip stall eases difficulty *before* the next
-//    find completes (no 30–60 min "stuck at wrong difficulty" window).
-//  - Multipool-resistant: no 24-block average lag / asymmetric 2×–4× clamps.
-//  - Timestamp-hardening: uses parent-of-anchor absolute schedule; combined
-//    with 15-min max future block time at the same activation height.
+// Schedule (absolute ASERT, ignore candidate nTime):
+//   base = anchor_target * 2^((t_tip - t_ref - (h_tip - h_ref + 1)*T) / τ)
+// RTT (when mining/validating a header with nTime):
+//   next = base * 2^((nTime - t_tip - T) / τ_rtt)
+// τ = nAsertHalfLife (30m), τ_rtt = nAsertRttHalfLife (15m), T = 120s.
 // ---------------------------------------------------------------------------
 
 arith_uint256 CalculateASERT(const arith_uint256& refTarget,
@@ -167,18 +176,14 @@ unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBloc
         return powLimit.GetCompact();
     }
 
-    // Anchor = last pre-ASERT block (activation height - 1). All absolute
-    // schedule math is relative to this fixed block for the rest of the chain.
-    // For always-on (activation 0), anchor is genesis.
+    // Anchor = last pre-ASERT block (activation height - 1). Absolute schedule
+    // forever references this block — intermediate RTT nBits do not accumulate error.
     const int nAnchorHeight = std::max(0, params.nAsertActivationHeight - 1);
     assert(pindexLast->nHeight >= nAnchorHeight);
 
     const CBlockIndex* pindexAnchor = pindexLast->GetAncestor(nAnchorHeight);
     assert(pindexAnchor != nullptr);
 
-    // Absolute ASERT: time reference is parent of the anchor (or the anchor
-    // itself if genesis). This way, if the anchor took exactly T seconds,
-    // the first ASERT target equals the anchor target.
     const int64_t nAnchorPrevTime = pindexAnchor->pprev
         ? pindexAnchor->pprev->GetBlockTime()
         : pindexAnchor->GetBlockTime();
@@ -187,22 +192,43 @@ unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBloc
     arith_uint256 refTarget;
     refTarget.SetCompact(pindexAnchor->nBits, &fNegative, &fOverflow);
     if (fNegative || fOverflow || refTarget == 0 || refTarget > powLimit) {
-        // Invalid compact on a would-be anchor — should not occur on a valid chain.
         return powLimit.GetCompact();
     }
 
-    // Important: use pindexLast (parent of the block being built), never the
-    // candidate block's nTime — prevents self-easing via timestamp manipulation.
+    // --- Layer 1: absolute ASERT from tip schedule (candidate nTime ignored) ---
     const int64_t nTimeDiff = pindexLast->GetBlockTime() - nAnchorPrevTime;
     const int64_t nHeightDiff = static_cast<int64_t>(pindexLast->nHeight) - pindexAnchor->nHeight;
 
-    const arith_uint256 nextTarget = CalculateASERT(
+    arith_uint256 nextTarget = CalculateASERT(
         refTarget,
         params.nPowTargetSpacing,
         nTimeDiff,
         nHeightDiff,
         powLimit,
         params.nAsertHalfLife);
+
+    // --- Layer 2: real-time easing for the block being mined/validated ---
+    // As solvetime grows past T, THIS block's target eases so the chain does
+    // not sit at a frozen high difficulty until someone lucks a find.
+    // Miners refresh GBT with current time; nBits drops continuously while stalled.
+    // Bounded by FTL (15 min after activation) so free future-stamping is limited.
+    if (params.nAsertRttHalfLife > 0 && pblock != nullptr) {
+        int64_t st = pblock->GetBlockTime() - pindexLast->GetBlockTime();
+        // Reject non-positive solvetimes for RTT (monotonicity); keep base ASERT.
+        if (st < 1) st = 1;
+        // Cap extreme claims (paranoia); FTL already limits honest-ish future.
+        const int64_t stCap = params.nAsertRttHalfLife * 32; // ≤ 2^32 ease theoretically
+        if (st > stCap) st = stCap;
+
+        // next = base * 2^((st - T) / τ_rtt)  via CalculateASERT(heightDiff=0)
+        nextTarget = CalculateASERT(
+            nextTarget,
+            params.nPowTargetSpacing,
+            st,
+            /*nHeightDiff=*/0,
+            powLimit,
+            params.nAsertRttHalfLife);
+    }
 
     return nextTarget.GetCompact();
 }
