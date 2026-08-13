@@ -72,6 +72,9 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 1000;
+        // ASERT + 15-min max future block time activate together at 190000
+        consensus.nAsertActivationHeight = 190000;
+        consensus.nAsertHalfLife = 2 * 60 * 60; // 2 hours
         consensus.nMaxReorgDepth = 20;
         consensus.nReorgLimitActivationHeight = 151600;
         consensus.nMaxFutureBlockTimeActivationHeight = 190000;
@@ -171,6 +174,9 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 1000;
+        // Testnet: ASERT always on (matches time-warp already active at height 0)
+        consensus.nAsertActivationHeight = 0;
+        consensus.nAsertHalfLife = 2 * 60 * 60;
         consensus.nMaxReorgDepth = 200;
         consensus.nReorgLimitActivationHeight = 0;
         consensus.nMaxFutureBlockTimeActivationHeight = 0;
@@ -259,6 +265,9 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 0;
+        // Regtest: DAA disabled via fPowNoRetargeting; ASERT height unused
+        consensus.nAsertActivationHeight = -1;
+        consensus.nAsertHalfLife = 2 * 60 * 60;
         consensus.nMaxReorgDepth = 0;
         consensus.nReorgLimitActivationHeight = 0;
         consensus.nMaxFutureBlockTimeActivationHeight = 0;

@@ -91,6 +91,18 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     /** WojakCoin: DAA V2 fork activation height */
     int nDifficultyV2ForkHeight;
+    /**
+     * WojakCoin: Height of the first block whose *nBits* are computed with ASERT (aserti3-2d).
+     * Must match nMaxFutureBlockTimeActivationHeight so DAA + 15-min future-time
+     * hardening activate together (mainnet: 190000).
+     * Use 0 for always-on (testnet); negative to disable (regtest relies on fPowNoRetargeting).
+     */
+    int nAsertActivationHeight;
+    /**
+     * WojakCoin: ASERT half-life in seconds. Every half-life of schedule skew
+     * doubles/halves target. 2 hours suits 2-minute blocks + multipool recovery.
+     */
+    int64_t nAsertHalfLife;
     /** WojakCoin: Maximum reorg depth allowed */
     int nMaxReorgDepth;
     /** WojakCoin: Height at which reorg limit activates */

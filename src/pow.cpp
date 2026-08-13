@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Bitcoin Core developers
-// Copyright (c) 2024 WojakCoin developers
+// Copyright (c) 2024-2026 WojakCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,8 +10,15 @@
 #include <chain.h>
 #include <primitives/block.h>
 #include <uint256.h>
-#include <util/system.h>
 
+#include <algorithm>
+#include <cassert>
+#include <cstdlib>
+
+// ---------------------------------------------------------------------------
+// Legacy V2 DAA (24-block target average). Used between nDifficultyV2ForkHeight
+// and nAsertActivationHeight. Kept for historical validation only.
+// ---------------------------------------------------------------------------
 unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     const int64_t nBlocksToAverage = 24;
@@ -70,16 +77,162 @@ unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHe
     return bnNew.GetCompact();
 }
 
+// ---------------------------------------------------------------------------
+// ASERT (aserti3-2d) — absolutely scheduled exponentially rising targets.
+// Ported from Bitcoin Cash / eCash (MIT), tuned for WojakCoin 2-minute blocks.
+//
+// next_target = ref_target * 2^((t - t_ref - (h - h_ref + 1) * T) / tau)
+//
+// Benefits over V2 for Wojak:
+//  - Continuous recovery: a long tip stall eases difficulty *before* the next
+//    find completes (no 30–60 min "stuck at wrong difficulty" window).
+//  - Multipool-resistant: no 24-block average lag / asymmetric 2×–4× clamps.
+//  - Timestamp-hardening: uses parent-of-anchor absolute schedule; combined
+//    with 15-min max future block time at the same activation height.
+// ---------------------------------------------------------------------------
+
+arith_uint256 CalculateASERT(const arith_uint256& refTarget,
+                             const int64_t nPowTargetSpacing,
+                             const int64_t nTimeDiff,
+                             const int64_t nHeightDiff,
+                             const arith_uint256& powLimit,
+                             const int64_t nHalfLife)
+{
+    // Input target must never be zero nor exceed powLimit.
+    assert(refTarget > 0 && refTarget <= powLimit);
+    assert(nHalfLife > 0);
+    assert(nHeightDiff >= 0);
+
+    // ASERT formula (ideal real numbers):
+    //   new_target = old_target * 2^((nTimeDiff - nPowTargetSpacing * (nHeightDiff + 1)) / nHalfLife)
+    //
+    // Integer aserti3-2d: 16.16 fixed-point exponent + cubic approx of 2^frac.
+
+    // Keep the product inside int64 before the / nHalfLife (same bound as BCH).
+    assert(llabs(nTimeDiff - nPowTargetSpacing * nHeightDiff) < (1ll << (63 - 16)));
+    const int64_t exponent = ((nTimeDiff - nPowTargetSpacing * (nHeightDiff + 1)) * 65536) / nHalfLife;
+
+    // Arithmetic right-shift required for negative exponents (floor division).
+    static_assert(int64_t(-1) >> 1 == int64_t(-1),
+                  "ASERT algorithm needs arithmetic shift support");
+
+    int64_t shifts = exponent >> 16;
+    const auto frac = uint16_t(exponent);
+    assert(exponent == (shifts * 65536) + frac);
+
+    // 2^x ≈ 1 + 0.695502049 x + 0.2262698 x^2 + 0.0782318 x^3  for 0 <= x < 1
+    // (error vs true 2^x < 0.013%). Factor is scaled by 65536.
+    const uint32_t factor = 65536 + ((
+        + 195766423245049ull * frac
+        + 971821376ull * frac * frac
+        + 5127ull * frac * frac * frac
+        + (1ull << 47)
+        ) >> 48);
+
+    // this is always < 2^241 when refTarget has enough leading zeros (mainnet powLimit)
+    arith_uint256 nextTarget = refTarget * factor;
+
+    // Apply 2^(integer part) and undo the extra *65536 from `factor`.
+    shifts -= 16;
+    if (shifts <= 0) {
+        nextTarget >>= -shifts;
+    } else {
+        const auto nextTargetShifted = nextTarget << shifts;
+        if ((nextTargetShifted >> shifts) != nextTarget) {
+            // Would have overflowed 256 bits → treat as powLimit.
+            nextTarget = powLimit;
+        } else {
+            nextTarget = nextTargetShifted;
+        }
+    }
+
+    if (nextTarget == 0) {
+        nextTarget = arith_uint256(1);
+    } else if (nextTarget > powLimit) {
+        nextTarget = powLimit;
+    }
+
+    return nextTarget;
+}
+
+unsigned int GetNextWorkRequiredASERT(const CBlockIndex* pindexLast, const CBlockHeader* pblock, const Consensus::Params& params)
+{
+    assert(pindexLast != nullptr);
+
+    const arith_uint256 powLimit = UintToArith256(params.powLimit);
+
+    // Testnet / regtest: allow min-difficulty if the tip is stale (legacy rule).
+    if (params.fPowAllowMinDifficultyBlocks && pblock != nullptr &&
+        pblock->GetBlockTime() > pindexLast->GetBlockTime() + 2 * params.nPowTargetSpacing) {
+        return powLimit.GetCompact();
+    }
+
+    // Anchor = last pre-ASERT block (activation height - 1). All absolute
+    // schedule math is relative to this fixed block for the rest of the chain.
+    // For always-on (activation 0), anchor is genesis.
+    const int nAnchorHeight = std::max(0, params.nAsertActivationHeight - 1);
+    assert(pindexLast->nHeight >= nAnchorHeight);
+
+    const CBlockIndex* pindexAnchor = pindexLast->GetAncestor(nAnchorHeight);
+    assert(pindexAnchor != nullptr);
+
+    // Absolute ASERT: time reference is parent of the anchor (or the anchor
+    // itself if genesis). This way, if the anchor took exactly T seconds,
+    // the first ASERT target equals the anchor target.
+    const int64_t nAnchorPrevTime = pindexAnchor->pprev
+        ? pindexAnchor->pprev->GetBlockTime()
+        : pindexAnchor->GetBlockTime();
+
+    bool fNegative = false, fOverflow = false;
+    arith_uint256 refTarget;
+    refTarget.SetCompact(pindexAnchor->nBits, &fNegative, &fOverflow);
+    if (fNegative || fOverflow || refTarget == 0 || refTarget > powLimit) {
+        // Invalid compact on a would-be anchor — should not occur on a valid chain.
+        return powLimit.GetCompact();
+    }
+
+    // Important: use pindexLast (parent of the block being built), never the
+    // candidate block's nTime — prevents self-easing via timestamp manipulation.
+    const int64_t nTimeDiff = pindexLast->GetBlockTime() - nAnchorPrevTime;
+    const int64_t nHeightDiff = static_cast<int64_t>(pindexLast->nHeight) - pindexAnchor->nHeight;
+
+    const arith_uint256 nextTarget = CalculateASERT(
+        refTarget,
+        params.nPowTargetSpacing,
+        nTimeDiff,
+        nHeightDiff,
+        powLimit,
+        params.nAsertHalfLife);
+
+    return nextTarget.GetCompact();
+}
+
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     assert(pindexLast != nullptr);
-    unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
 
-    // WojakCoin: V2 difficulty algorithm fork
-    if (params.nDifficultyV2ForkHeight > 0 && pindexLast->nHeight + 1 >= params.nDifficultyV2ForkHeight)
+    if (params.fPowNoRetargeting)
+        return pindexLast->nBits;
+
+    const int nNextHeight = pindexLast->nHeight + 1;
+
+    // WojakCoin: ASERT DAA (activates with time-warp fix at nAsertActivationHeight).
+    // nAsertActivationHeight == 0 → always active from height 1 (testnet).
+    // nAsertActivationHeight  < 0 → disabled.
+    if (params.nAsertActivationHeight >= 0 && nNextHeight >= params.nAsertActivationHeight) {
+        const int nAnchorHeight = std::max(0, params.nAsertActivationHeight - 1);
+        if (pindexLast->nHeight >= nAnchorHeight) {
+            return GetNextWorkRequiredASERT(pindexLast, pblock, params);
+        }
+    }
+
+    // WojakCoin: V2 difficulty algorithm (pre-ASERT)
+    if (params.nDifficultyV2ForkHeight > 0 && nNextHeight >= params.nDifficultyV2ForkHeight)
         return GetNextWorkRequiredV2(pindexLast, pblock, params);
 
-    if ((pindexLast->nHeight+1) % params.DifficultyAdjustmentInterval() != 0)
+    unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
+
+    if (nNextHeight % params.DifficultyAdjustmentInterval() != 0)
     {
         if (params.fPowAllowMinDifficultyBlocks)
         {
