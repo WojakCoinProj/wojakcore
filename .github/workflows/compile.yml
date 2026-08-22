@@ -1,12 +1,12 @@
-# Full multi-platform compile with Qt for rebase-0.21.2
+# Full multi-platform compile with Qt for main
 # Jobs match release matrix: Linux x86_64, Linux aarch64, Windows x86_64, macOS arm64
 name: Compile
 
 on:
   push:
-    branches: [rebase-0.21.2]
+    branches: [main]
   pull_request:
-    branches: [rebase-0.21.2]
+    branches: [main]
   workflow_dispatch:
 
 env:
