@@ -272,7 +272,10 @@ void BitcoinApplication::createWindow(const NetworkStyle *networkStyle)
 void BitcoinApplication::createSplashScreen(const NetworkStyle *networkStyle)
 {
     assert(!m_splash);
-    m_splash = new SplashScreen(nullptr, networkStyle);
+    // WindowDoesNotAcceptFocus avoids becoming the AppKit key window on macOS,
+    // which prevents resignKeyWindow → QAction::setEnabled crashes when the
+    // splash is later hidden during failed or slow init.
+    m_splash = new SplashScreen(Qt::Window | Qt::WindowDoesNotAcceptFocus, networkStyle);
     // We don't hold a direct pointer to the splash screen after creation, but the splash
     // screen will take care of deleting itself when finish() happens.
     m_splash->show();

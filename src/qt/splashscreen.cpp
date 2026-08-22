@@ -20,6 +20,7 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QEventLoop>
 #include <QPainter>
 #include <QRadialGradient>
 #include <QScreen>
@@ -165,6 +166,28 @@ void SplashScreen::finish()
     /* Make sure we de-minimize the splashscreen window before hiding */
     if (isMinimized())
         showNormal();
+
+#ifdef Q_OS_MAC
+    // On newer macOS (Sequoia/Tahoe+), ordering out a key splash window fires
+    // NSWindow resignKeyWindow → Qt processActivatedEvent → QAction::setEnabled
+    // on the main window's menus while they are still being built (or while
+    // init is failing). That is a SIGSEGV in QAction::setEnabled.
+    // Hand key focus to a disposable invisible widget first, then hide.
+    clearFocus();
+    setAttribute(Qt::WA_ShowWithoutActivating, true);
+    if (QApplication::activeWindow() == this || QApplication::focusWidget() == this) {
+        QWidget* handoff = new QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint);
+        handoff->setAttribute(Qt::WA_DontShowOnScreen, true);
+        handoff->setAttribute(Qt::WA_DeleteOnClose, true);
+        handoff->resize(1, 1);
+        handoff->show();
+        handoff->raise();
+        handoff->activateWindow();
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        handoff->close();
+    }
+#endif
+
     hide();
     deleteLater(); // No more need for this
 }
