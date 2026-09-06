@@ -72,6 +72,7 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 1000;
+        consensus.nDifficultyV3ForkHeight = 205000; // LWMA DAA
         consensus.nMaxReorgDepth = 20;
         consensus.nReorgLimitActivationHeight = 151600;
         consensus.nMaxFutureBlockTimeActivationHeight = 190000;
@@ -171,6 +172,7 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 1000;
+        consensus.nDifficultyV3ForkHeight = 1000; // LWMA on testnet/signet from V2 height
         consensus.nMaxReorgDepth = 200;
         consensus.nReorgLimitActivationHeight = 0;
         consensus.nMaxFutureBlockTimeActivationHeight = 0;
@@ -259,6 +261,7 @@ public:
         consensus.nPowTargetTimespan = 6 * 60;
         consensus.nPowTargetSpacing = 2 * 60;
         consensus.nDifficultyV2ForkHeight = 0;
+        consensus.nDifficultyV3ForkHeight = 0; // Disabled; unit tests call GetNextWorkRequiredV3 directly
         consensus.nMaxReorgDepth = 0;
         consensus.nReorgLimitActivationHeight = 0;
         consensus.nMaxFutureBlockTimeActivationHeight = 0;

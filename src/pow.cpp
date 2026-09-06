@@ -12,6 +12,77 @@
 #include <uint256.h>
 #include <util/system.h>
 
+#include <algorithm>
+#include <cassert>
+
+// LWMA window for Difficulty V3 (N=60 ≈ 2 hours at 2-minute blocks).
+static constexpr int64_t DIFFICULTY_V3_LWMA_WINDOW = 60;
+
+unsigned int GetNextWorkRequiredV3(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
+{
+    (void)pblock;
+    const int64_t T = params.nPowTargetSpacing;
+    const int64_t N = DIFFICULTY_V3_LWMA_WINDOW;
+    // k = N*(N+1)*T/2  (sum of weights 1..N times target spacing)
+    const int64_t k = N * (N + 1) * T / 2;
+
+    const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
+    const unsigned int nProofOfWorkLimit = bnPowLimit.GetCompact();
+
+    if (pindexLast == nullptr)
+        return nProofOfWorkLimit;
+
+    // Need N prior intervals (N+1 block headers). Fall back until enough history.
+    if (pindexLast->nHeight < N)
+        return pindexLast->nBits;
+
+    arith_uint256 sumTarget;
+    int64_t t = 0;
+    int64_t j = 0;
+
+    // Walk oldest -> newest over the last N blocks; weight j increases toward tip.
+    for (int64_t i = pindexLast->nHeight - N + 1; i <= pindexLast->nHeight; i++) {
+        const CBlockIndex* block = pindexLast->GetAncestor(i);
+        assert(block);
+        assert(block->pprev);
+
+        int64_t solvetime = block->GetBlockTime() - block->pprev->GetBlockTime();
+        // Clamp to [1, 6T] to limit single-block timestamp manipulation.
+        solvetime = std::max<int64_t>(1, std::min<int64_t>(solvetime, 6 * T));
+
+        j++;
+        t += solvetime * j;
+
+        arith_uint256 target;
+        target.SetCompact(block->nBits);
+        sumTarget += target;
+    }
+
+    // next = (avg target) * (weighted solvetimes) / k
+    arith_uint256 bnNew = sumTarget / N;
+    bnNew *= t;
+    bnNew /= k;
+
+    // Symmetric per-step clamp vs previous target: max 2x easier or 2x harder.
+    arith_uint256 bnPrev;
+    bnPrev.SetCompact(pindexLast->nBits);
+    arith_uint256 bnMax = bnPrev * 2;
+    if (bnMax < bnPrev || bnMax > bnPowLimit)
+        bnMax = bnPowLimit;
+    const arith_uint256 bnMin = bnPrev / 2;
+    if (bnNew > bnMax)
+        bnNew = bnMax;
+    if (bnNew < bnMin)
+        bnNew = bnMin;
+
+    if (bnNew > bnPowLimit)
+        bnNew = bnPowLimit;
+    if (bnNew == 0)
+        bnNew = bnMin == 0 ? arith_uint256(1) : bnMin;
+
+    return bnNew.GetCompact();
+}
+
 unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     const int64_t nBlocksToAverage = 24;
@@ -74,6 +145,10 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
 {
     assert(pindexLast != nullptr);
     unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
+
+    // WojakCoin: V3 difficulty algorithm fork (LWMA)
+    if (params.nDifficultyV3ForkHeight > 0 && pindexLast->nHeight + 1 >= params.nDifficultyV3ForkHeight)
+        return GetNextWorkRequiredV3(pindexLast, pblock, params);
 
     // WojakCoin: V2 difficulty algorithm fork
     if (params.nDifficultyV2ForkHeight > 0 && pindexLast->nHeight + 1 >= params.nDifficultyV2ForkHeight)
