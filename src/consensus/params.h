@@ -91,6 +91,8 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     /** WojakCoin: DAA V2 fork activation height */
     int nDifficultyV2ForkHeight;
+    /** WojakCoin: DAA V3 (LWMA) fork activation height */
+    int nDifficultyV3ForkHeight;
     /** WojakCoin: Maximum reorg depth allowed */
     int nMaxReorgDepth;
     /** WojakCoin: Height at which reorg limit activates */

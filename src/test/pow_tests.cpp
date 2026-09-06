@@ -2,9 +2,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <arith_uint256.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <pow.h>
+#include <primitives/block.h>
 #include <test/util/setup_common.h>
 
 #include <boost/test/unit_test.hpp>
@@ -180,6 +182,89 @@ BOOST_AUTO_TEST_CASE(ChainParams_TESTNET_sanity)
 BOOST_AUTO_TEST_CASE(ChainParams_SIGNET_sanity)
 {
     sanity_check_chainparams(*m_node.args, CBaseChainParams::SIGNET);
+}
+
+/* V3 LWMA: on-target solvetimes should keep next bits at the previous bits. */
+BOOST_AUTO_TEST_CASE(get_next_work_v3_lwma_on_target)
+{
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    const Consensus::Params& params = chainParams->GetConsensus();
+
+    const int N = 60;
+    const unsigned int nBits = 0x1d00ffff;
+    std::vector<CBlockIndex> blocks(N + 1);
+    for (int i = 0; i <= N; i++) {
+        blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
+        blocks[i].nHeight = i;
+        blocks[i].nTime = 1500000000 + i * params.nPowTargetSpacing;
+        blocks[i].nBits = nBits;
+        blocks[i].nChainWork = i ? blocks[i - 1].nChainWork + GetBlockProof(blocks[i - 1]) : arith_uint256(0);
+    }
+
+    CBlockHeader unused;
+    unsigned int next = GetNextWorkRequiredV3(&blocks[N], &unused, params);
+    BOOST_CHECK_EQUAL(next, nBits);
+}
+
+/* V3 LWMA: consistently fast blocks must raise difficulty (lower target), capped at 2x. */
+BOOST_AUTO_TEST_CASE(get_next_work_v3_lwma_fast_blocks)
+{
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    const Consensus::Params& params = chainParams->GetConsensus();
+
+    const int N = 60;
+    const unsigned int nBits = 0x1d00ffff;
+    std::vector<CBlockIndex> blocks(N + 1);
+    for (int i = 0; i <= N; i++) {
+        blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
+        blocks[i].nHeight = i;
+        // 30s blocks = 4x too fast vs 120s target
+        blocks[i].nTime = 1500000000 + i * (params.nPowTargetSpacing / 4);
+        blocks[i].nBits = nBits;
+        blocks[i].nChainWork = i ? blocks[i - 1].nChainWork + GetBlockProof(blocks[i - 1]) : arith_uint256(0);
+    }
+
+    CBlockHeader unused;
+    unsigned int next = GetNextWorkRequiredV3(&blocks[N], &unused, params);
+    arith_uint256 prev, got;
+    prev.SetCompact(nBits);
+    got.SetCompact(next);
+    BOOST_CHECK(got < prev);
+    BOOST_CHECK(got >= prev / 2);
+}
+
+/* V3 LWMA: consistently slow blocks must lower difficulty (higher target), capped at 2x. */
+BOOST_AUTO_TEST_CASE(get_next_work_v3_lwma_slow_blocks)
+{
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    const Consensus::Params& params = chainParams->GetConsensus();
+
+    const int N = 60;
+    const unsigned int nBits = 0x1c00ffff; // below powLimit so 2x easier still fits
+    std::vector<CBlockIndex> blocks(N + 1);
+    for (int i = 0; i <= N; i++) {
+        blocks[i].pprev = i ? &blocks[i - 1] : nullptr;
+        blocks[i].nHeight = i;
+        // 480s blocks = 4x too slow vs 120s
+        blocks[i].nTime = 1500000000 + i * (params.nPowTargetSpacing * 4);
+        blocks[i].nBits = nBits;
+        blocks[i].nChainWork = i ? blocks[i - 1].nChainWork + GetBlockProof(blocks[i - 1]) : arith_uint256(0);
+    }
+
+    CBlockHeader unused;
+    unsigned int next = GetNextWorkRequiredV3(&blocks[N], &unused, params);
+    arith_uint256 prev, got;
+    prev.SetCompact(nBits);
+    got.SetCompact(next);
+    BOOST_CHECK(got > prev);
+    BOOST_CHECK(got <= prev * 2);
+}
+
+/* Mainnet V3 activation height is 205000. */
+BOOST_AUTO_TEST_CASE(difficulty_v3_activation_height)
+{
+    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    BOOST_CHECK_EQUAL(chainParams->GetConsensus().nDifficultyV3ForkHeight, 205000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
